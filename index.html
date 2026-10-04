@@ -1,6 +1,8 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Bright Orbit Games</title>
     <style>
         body {
@@ -8,21 +10,25 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
+            min-height: 100vh;
             margin: 0;
             font-family: Arial, sans-serif;
             color: white;
             text-align: center;
         }
-        h1 { font-size: 3em; margin: 0; }
+        main { padding: 1.5rem; }
+        h1 { font-size: clamp(2rem, 7vw, 3em); margin: 0; }
         p { font-size: 1.2em; }
+        a { color: white; text-underline-offset: .25em; }
+        a:focus-visible { outline: 3px solid white; outline-offset: 5px; }
     </style>
 </head>
 <body>
-    <div>
+    <main>
         <h1>🎮 Bright Orbit Games</h1>
         <p>Games in development...</p>
         <p>Coming soon to Google Play</p>
-    </div>
+        <p><a href="maze-escape-privacy.html" lang="es">Política de privacidad de Maze Escape</a></p>
+    </main>
 </body>
 </html>
