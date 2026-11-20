@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
@@ -69,48 +69,48 @@ class Terrain {
    .  vacío   B ladrillo   S acero   W agua   F bosque
    l r u d  medio ladrillo     1 2 3 4  medio acero          */
 const SECTORS = [
-  ['Avanzada', [
+  ['Outpost', [
     '................', '.BBB..B..B..BBB.', '.B............B.', '.B..FF....FF..B.',
     '....FF.SS.FF....', '..BBB......BBB..', '..B....BB....B..', 'WW...B....B...WW',
     'WW...B....B...WW', '..B....BB....B..', '..BBB......BBB..', '....FF....FF....',
     '.B..FF.BB.FF..B.', '.B............B.', '.BBB........BBB.', '................']],
-  ['Ribera', [
+  ['Riverbank', [
     '................', '..SS..B..B..SS..', '..BB..B..B..BB..', '......BBBB......',
     '.FFF........FFF.', '.FFF.BB..BB.FFF.', 'WWWW.BB..BB.WWWW', '................',
     '..B..SS..SS..B..', '..B..........B..', '..BBBB.FF.BBBB..', '.......FF.......',
     '.SS..B....B..SS.', '.....B....B.....', '..B..........B..', '..B..........B..']],
-  ['Laberinto', [
+  ['Labyrinth', [
     '................', '.BBBBB....BBBBB.', '.B...B....B...B.', '.B.F.B.SS.B.F.B.',
     '.B...B....B...B.', '.BB.BB.BB.BB.BB.', '................', 'SS.BBBB..BBBB.SS',
     '.....B....B.....', '.FF..B.WW.B..FF.', '.FF....WW....FF.', '...BBB....BBB...',
     '.B.....SS.....B.', '.B.BB......BB.B.', '.B............B.', '................']],
-  ['Fundición', [
+  ['Foundry', [
     '................', '.SSS.BBBBBB.SSS.', '................', 'B.B.B.S..S.B.B.B',
     'B.B.B......B.B.B', '....BBBSSBBB....', '.S............S.', '.S.FFFF..FFFF.S.',
     '.S.FFFF..FFFF.S.', '.S............S.', '....BBB..BBB....', 'BB....S..S....BB',
     '..BB........BB..', 'S...BB....BB...S', '..B..........B..', '..B..........B..']],
-  ['Archipiélago', [
+  ['Archipelago', [
     '................', '..WW..B..B..WW..', '..WW..B..B..WW..', '......FFFF......',
     'BB..WWW..WWW..BB', '....W......W....', '.FF.W.BBBB.W.FF.', '.FF...B..B...FF.',
     '......B..B......', 'SS..WWW..WWW..SS', '................', '..BBB.FFFF.BBB..',
     '..B..........B..', 'WW...BB..BB...WW', '................', '................']],
-  ['Cuadrícula', [
+  ['Grid', [
     '................', '.SB.BS.BB.SB.BS.', '................', '.BS.SB.SS.BS.SB.',
     '................', '..FFFF....FFFF..', '..F..B.BB.B..F..', '..F..B....B..F..',
     '..FFFF....FFFF..', '................', '.SB.BS.BB.SB.BS.', '................',
     'WW.BB.B..B.BB.WW', '...B........B...', '..BB........BB..', '................']],
-  ['Trincheras', [
+  ['Trenches', [
     '................', 'BBBBBB....BBBBBB', '......S..S......', '.BBBBBBuuBBBBBB.',
     '................', 'FF...SSSSSS...FF', 'FF............FF', '..BBBB.dd.BBBB..',
     '..B..........B..', 'WWW..BB..BB..WWW', '................', '.BBBB.BBBB.BBBB.',
     '................', '..SS..l..r..SS..', '..B..........B..', '................']],
-  ['Ciudadela', [
+  ['Citadel', [
     '................', '..B..........B..', '..B.SSSSSSSS.B..', '....B......B....',
     '.FF.B.BBBB.B.FF.', '.FF.B.B..B.B.FF.', '....B.B..B.B....', 'WW..B......B..WW',
     'WW..BBBuuBBB..WW', '................', 'S.BB..FFFF..BB.S', '..B....SS....B..',
     '..B..........B..', '.....BB..BB.....', '..SS........SS..', '................']],
 ];
-const GREEK = ['Alfa', 'Beta', 'Gamma', 'Delta', 'Épsilon', 'Zeta', 'Eta', 'Theta', 'Iota', 'Kappa', 'Lambda', 'Sigma', 'Omega'];
+const GREEK = ['Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon', 'Zeta', 'Eta', 'Theta', 'Iota', 'Kappa', 'Lambda', 'Sigma', 'Omega'];
 
 function applyTile(t, bx, by, c) {
   switch (c) {
@@ -154,7 +154,7 @@ function buildSector(stage, terrain) {
   if (stage <= SECTORS.length) { [name, rows] = SECTORS[stage - 1]; }
   else {
     const n = stage - SECTORS.length;
-    name = `Zona ${GREEK[(n - 1) % GREEK.length]}-${Math.floor((n - 1) / GREEK.length) + 1}`;
+    name = `Zone ${GREEK[(n - 1) % GREEK.length]}-${Math.floor((n - 1) / GREEK.length) + 1}`;
     rows = generateSector(stage);
   }
   for (let ty = 0; ty < 16; ty++) {
@@ -167,17 +167,17 @@ function buildSector(stage, terrain) {
 /* ------------------------------------------------------------ datos */
 const KINDS = [
   { i: 0, label: 'Rover',    speed: 30, hp: 1, bullet: 130, fmin: 0.9, fmax: 2.2, points: 100, color: 0x9DB86A },
-  { i: 1, label: 'Dardo',    speed: 58, hp: 1, bullet: 140, fmin: 0.8, fmax: 2.0, points: 200, color: 0xF0B03A },
-  { i: 2, label: 'Lancero',  speed: 34, hp: 1, bullet: 230, fmin: 0.5, fmax: 1.4, points: 300, color: 0xC46BE8 },
-  { i: 3, label: 'Baluarte', speed: 26, hp: 4, bullet: 150, fmin: 0.8, fmax: 1.9, points: 400, color: 0xE05252 },
+  { i: 1, label: 'Dart',     speed: 58, hp: 1, bullet: 140, fmin: 0.8, fmax: 2.0, points: 200, color: 0xF0B03A },
+  { i: 2, label: 'Lancer',   speed: 34, hp: 1, bullet: 230, fmin: 0.5, fmax: 1.4, points: 300, color: 0xC46BE8 },
+  { i: 3, label: 'Bulwark',  speed: 26, hp: 4, bullet: 150, fmin: 0.8, fmax: 1.9, points: 400, color: 0xE05252 },
 ];
 const POWERS = [
-  { id: 'SHIELD',    label: 'ESCUDO',          color: 0x5FE3FF },
-  { id: 'OVERDRIVE', label: 'SOBRECARGA',      color: 0xFFD84A },
-  { id: 'REPAIR',    label: 'TANQUE EXTRA',    color: 0x7CF08A },
-  { id: 'STASIS',    label: 'ESTASIS',         color: 0xA8D8FF },
-  { id: 'FORTIFY',   label: 'FORTÍN DE ACERO', color: 0xC9D2DC },
-  { id: 'NUKE',      label: 'PULSO',           color: 0xFF6B5A },
+  { id: 'SHIELD',    label: 'SHIELD',          color: 0x5FE3FF },
+  { id: 'OVERDRIVE', label: 'OVERDRIVE',       color: 0xFFD84A },
+  { id: 'REPAIR',    label: 'EXTRA TANK',      color: 0x7CF08A },
+  { id: 'STASIS',    label: 'STASIS',          color: 0xA8D8FF },
+  { id: 'FORTIFY',   label: 'STEEL FORT',      color: 0xC9D2DC },
+  { id: 'NUKE',      label: 'PULSE',           color: 0xFF6B5A },
 ];
 const makeTank = isPlayer => ({
   isPlayer, kind: KINDS[0], x: 0, y: 0, dir: UP, alive: false, hp: 1, speed: 46, spawnTimer: 0, shield: 0,
@@ -686,7 +686,7 @@ function killPlayer() {
   sfx.play(SFX.BIG);
   G.shake = 0.45;
   G.lives--;
-  if (G.lives <= 0) gameOver('SIN TANQUES DISPONIBLES'); else G.respawnTimer = 1.4;
+  if (G.lives <= 0) gameOver('NO TANKS LEFT'); else G.respawnTimer = 1.4;
 }
 function destroyCore() {
   if (!G.coreAlive) return;
@@ -694,7 +694,7 @@ function destroyCore() {
   explosion(CORE_X + 8, CORE_Y + 8, true); explosion(CORE_X + 4, CORE_Y + 6, true); explosion(CORE_X + 12, CORE_Y + 10, true);
   sfx.play(SFX.BIG);
   G.shake = 0.7;
-  gameOver('EL NÚCLEO HA CAÍDO');
+  gameOver('THE CORE HAS FALLEN');
 }
 function gameOver(reason) {
   if (G.state === S.OVER) return;
@@ -1164,10 +1164,10 @@ function drawHud() {
   }
   const lx = rcx(L.left);
   let y = L.pauseRect.b + f * 1.8;
-  label('PUNTOS', lx, y, f * 0.7, MUTED);
+  label('SCORE', lx, y, f * 0.7, MUTED);
   label(String(G.score), lx, y + f * 1.3, f * 1.25, TEXT);
   y += f * 3.2;
-  label('RÉCORD', lx, y, f * 0.7, MUTED);
+  label('BEST', lx, y, f * 0.7, MUTED);
   label(String(G.hiScore), lx, y + f * 1.3, f * 1.05, ACCENT);
 
   const rx = rcx(L.right);
@@ -1188,14 +1188,14 @@ function drawHud() {
   }
   if (G.stasis > 0 || G.fortify > 0) {
     y += f * 1.2;
-    const txt = G.stasis > 0 ? `ESTASIS ${Math.ceil(G.stasis)}` : `FORTÍN ${Math.ceil(G.fortify)}`;
+    const txt = G.stasis > 0 ? `STASIS ${Math.ceil(G.stasis)}` : `FORT ${Math.ceil(G.fortify)}`;
     label(txt, rx, y, f * 0.65, G.stasis > 0 ? 0xA8D8FF : STEEL_HI);
   }
 }
 function drawKeyHints() {
   if (L.portrait) return;
   const f = L.font;
-  const rows = [['MOVER', 'Flechas / WASD'], ['DISPARAR', 'Espacio'], ['PAUSA', 'P / Esc'], ['SONIDO', sfx.muted ? 'M (silenciado)' : 'M']];
+  const rows = [['MOVE', 'Arrows / WASD'], ['FIRE', 'Space'], ['PAUSE', 'P / Esc'], ['SOUND', sfx.muted ? 'M (muted)' : 'M']];
   let y = L.h - f * (rows.length * 1.9 + 0.6);
   const lx = rcx(L.left);
   for (const [k, v] of rows) {
@@ -1233,7 +1233,7 @@ function drawControls() {
   ctx.moveTo(fx - cr * 1.7, fy); ctx.lineTo(fx - cr * 0.6, fy); ctx.moveTo(fx + cr * 0.6, fy); ctx.lineTo(fx + cr * 1.7, fy);
   ctx.moveTo(fx, fy - cr * 1.7); ctx.lineTo(fx, fy - cr * 0.6); ctx.moveTo(fx, fy + cr * 0.6); ctx.lineTo(fx, fy + cr * 1.7);
   ctx.stroke();
-  label('FUEGO', fx, fy + L.fireR + L.font * 0.9, L.font * 0.6, 0xFF9A80, 'center', 0.6);
+  label('FIRE', fx, fy + L.fireR + L.font * 0.9, L.font * 0.6, 0xFF9A80, 'center', 0.6);
 }
 
 /* ---------- superposiciones */
@@ -1245,17 +1245,17 @@ function drawIntro() {
   const cx = L.mapX + L.mapSize / 2, cy = L.mapY + L.mapSize / 2, s = L.mapSize;
   label(`SECTOR ${G.stage}`, cx, cy - s * 0.01, s * 0.1, ACCENT, 'center', a, 0.2);
   label(G.stageName.toUpperCase(), cx, cy + s * 0.08, s * 0.05, TEXT, 'center', a);
-  label('Defiende el núcleo', cx, cy + s * 0.15, s * 0.035, MUTED, 'center', a);
+  label('Defend the core', cx, cy + s * 0.15, s * 0.035, MUTED, 'center', a);
 }
 function drawOver() {
   const prog = clamp01((3 - G.stateTimer) / 1.2);
   fillC(0x05070A, prog * 0.75); ctx.fillRect(L.mapX, L.mapY, L.mapSize, L.mapSize);
   const cx = L.mapX + L.mapSize / 2, s = L.mapSize, cy = L.mapY + s * 0.42 + (1 - prog) * s * 0.3;
-  label('FIN DEL JUEGO', cx, cy, s * 0.11, 0xFF6B5A, 'center', prog, 0.15);
+  label('GAME OVER', cx, cy, s * 0.11, 0xFF6B5A, 'center', prog, 0.15);
   label(G.overReason, cx, cy + s * 0.08, s * 0.04, TEXT, 'center', prog);
-  label(`PUNTOS  ${G.score}`, cx, cy + s * 0.17, s * 0.055, ACCENT, 'center', prog);
-  if (G.newRecord && (((G.time * 3) | 0) & 1) === 0) label('¡NUEVO RÉCORD!', cx, cy + s * 0.25, s * 0.045, 0xFFD84A, 'center', prog);
-  if (G.stateTimer <= 0 && (((G.time * 2) | 0) & 1) === 0) label(touchMode ? 'Toca para continuar' : 'Pulsa Enter para continuar', cx, L.mapY + s * 0.9, s * 0.04, MUTED);
+  label(`SCORE  ${G.score}`, cx, cy + s * 0.17, s * 0.055, ACCENT, 'center', prog);
+  if (G.newRecord && (((G.time * 3) | 0) & 1) === 0) label('NEW HIGH SCORE!', cx, cy + s * 0.25, s * 0.045, 0xFFD84A, 'center', prog);
+  if (G.stateTimer <= 0 && (((G.time * 2) | 0) & 1) === 0) label(touchMode ? 'Tap to continue' : 'Press Enter to continue', cx, L.mapY + s * 0.9, s * 0.04, MUTED);
 }
 function button(r, s, color, f) {
   rrPath(ctx, r.l, r.t, rw(r), r.b - r.t, f * 0.5);
@@ -1266,9 +1266,9 @@ function button(r, s, color, f) {
 function drawPause() {
   fillC(0x000000, 0.69); ctx.fillRect(0, 0, L.w, L.h);
   const f = L.font;
-  label('PAUSA', L.w / 2, L.resumeRect.t - f * 1.6, f * 2.4, TEXT, 'center', 1, 0.3);
-  button(L.resumeRect, 'CONTINUAR', PLAYER, f);
-  button(L.quitRect, 'SALIR AL MENÚ', 0xFF7A59, f);
+  label('PAUSED', L.w / 2, L.resumeRect.t - f * 1.6, f * 2.4, TEXT, 'center', 1, 0.3);
+  button(L.resumeRect, 'RESUME', PLAYER, f);
+  button(L.quitRect, 'QUIT TO MENU', 0xFF7A59, f);
 }
 
 /* ---------- pantallas */
@@ -1306,17 +1306,17 @@ function drawTitle() {
     drawTank(0, 0, side < 0 ? RIGHT : LEFT, kind.color, i, G.time * 12, 0);
     ctx.restore();
   });
-  if ((((G.time * 1.6) | 0) & 1) === 0) label(touchMode ? 'TOCA PARA EMPEZAR' : 'PULSA ENTER O HAZ CLIC PARA EMPEZAR', cx, h * 0.72, u * 0.055, TEXT);
-  label(`RÉCORD  ${G.hiScore}`, cx, h * 0.8, u * 0.04, ACCENT);
+  if ((((G.time * 1.6) | 0) & 1) === 0) label(touchMode ? 'TAP TO START' : 'PRESS ENTER OR CLICK TO START', cx, h * 0.72, u * 0.055, TEXT);
+  label(`BEST  ${G.hiScore}`, cx, h * 0.8, u * 0.04, ACCENT);
   const hint = touchMode
-    ? 'Joystick a la izquierda  ·  Disparo a la derecha  ·  Protege el núcleo'
-    : 'Flechas / WASD para mover  ·  Espacio para disparar  ·  P pausa  ·  M sonido';
+    ? 'Joystick on the left  ·  Fire on the right  ·  Protect the core'
+    : 'Arrows / WASD to move  ·  Space to fire  ·  P pause  ·  M sound';
   label(hint, cx, h - bandH - u * 0.035, u * 0.032, MUTED);
 }
 function drawTally() {
   const w = L.w, h = L.h, u = Math.min(h, w * 0.6), cx = w / 2;
   drawBackdrop();
-  label(`SECTOR ${G.stage} ASEGURADO`, cx, h * 0.15, u * 0.075, ACCENT, 'center', 1, 0.12);
+  label(`SECTOR ${G.stage} SECURED`, cx, h * 0.15, u * 0.075, ACCENT, 'center', 1, 0.12);
   const rowH = u * 0.1, startY = h * 0.3;
   const colIcon = cx - u * 0.42, colName = cx - u * 0.33, colCount = cx + u * 0.12, colPts = cx + u * 0.45;
   let total = 0;
@@ -1332,11 +1332,11 @@ function drawTally() {
   if (G.tallyTime >= 0.4 + KINDS.length * 0.35) {
     const y = startY + KINDS.length * rowH;
     fillC(0x2C3440); ctx.fillRect(colIcon - rowH * 0.4, y - rowH * 0.6, colPts - colIcon + rowH * 0.4, 2 * L.density);
-    label('DESTRUIDOS', colName, y, u * 0.05, MUTED, 'left');
+    label('DESTROYED', colName, y, u * 0.05, MUTED, 'left');
     label(String(total), colCount, y, u * 0.05, TEXT, 'right');
-    label(`PUNTOS  ${G.score}`, cx, y + rowH * 1.2, u * 0.065, ACCENT);
+    label(`SCORE  ${G.score}`, cx, y + rowH * 1.2, u * 0.065, ACCENT);
   }
-  if (G.tallyTime > 1.2 && (((G.time * 2) | 0) & 1) === 0) label(touchMode ? 'Toca para continuar' : 'Pulsa Enter para continuar', cx, h * 0.93, u * 0.04, MUTED);
+  if (G.tallyTime > 1.2 && (((G.time * 2) | 0) & 1) === 0) label(touchMode ? 'Tap to continue' : 'Press Enter to continue', cx, h * 0.93, u * 0.04, MUTED);
 }
 
 /* ============================================================ entrada */
