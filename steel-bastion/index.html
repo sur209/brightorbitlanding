@@ -9,6 +9,28 @@
   html, body { margin: 0; height: 100%; background: #0A0D12; overflow: hidden; }
   body { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
   canvas { display: block; position: fixed; inset: 0; width: 100%; height: 100%; outline: none; }
+  #lobby { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 1rem;
+           background: rgba(5, 7, 10, .72); font-family: "Roboto Condensed", "Arial Narrow", Arial, sans-serif; color: #E8EEF5; z-index: 5; }
+  #lobby[hidden], #lobby [hidden] { display: none !important; }
+  .lb-box { width: min(26rem, 100%); background: #10151C; border: 2px solid #2C3440; border-radius: 14px; padding: 1.4rem 1.5rem 1.3rem;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, .5); text-align: center; touch-action: auto; user-select: text; -webkit-user-select: text; }
+  .lb-box h2 { margin: 0 0 .5rem; font-size: 1.6rem; letter-spacing: .08em; text-transform: uppercase; color: #F0B03A; }
+  #lb-msg { margin: .4rem 0 1rem; color: #B9C2CE; line-height: 1.4; min-height: 1.4em; overflow-wrap: anywhere; }
+  #lb-msg.lb-error { color: #FF9A80; }
+  #lb-code { font: 700 2.6rem/1 "Consolas", "Courier New", monospace; letter-spacing: .3em; padding: .6rem 0 .6rem .3em; margin: 0 0 1rem;
+             background: #0A0D12; border: 2px dashed #35D0C8; border-radius: 10px; color: #7FF5EE; }
+  #lb-form { display: grid; gap: .6rem; margin-bottom: 1rem; }
+  #lb-form label { font-size: .85rem; letter-spacing: .12em; text-transform: uppercase; color: #8C96A3; }
+  #lb-input { font: 700 2rem/1 "Consolas", "Courier New", monospace; letter-spacing: .3em; text-align: center; text-transform: uppercase;
+              padding: .5rem; border-radius: 10px; border: 2px solid #2C3440; background: #0A0D12; color: #E8EEF5; width: 100%; box-sizing: border-box; }
+  #lb-input:focus { outline: none; border-color: #7C8CFF; }
+  .lb-row { display: flex; gap: .6rem; justify-content: center; flex-wrap: wrap; }
+  .lb-box button { font: 700 1rem/1 inherit; font-family: inherit; letter-spacing: .08em; text-transform: uppercase; cursor: pointer;
+                   padding: .75rem 1.2rem; border-radius: 999px; border: 2px solid #35D0C8; background: rgba(53, 208, 200, .18); color: #E8EEF5; }
+  .lb-box button:hover { background: rgba(53, 208, 200, .32); }
+  .lb-box button:disabled { opacity: .5; cursor: wait; }
+  .lb-box button.lb-secondary { border-color: #FF7A59; background: rgba(255, 122, 89, .12); }
+  .lb-box button:focus-visible, #lb-input:focus-visible { outline: 3px solid #F0B03A; outline-offset: 3px; }
 </style>
 </head>
 <body>
@@ -40,14 +62,14 @@ function mulberry32(seed) {
 
 /* ------------------------------------------------------------ terreno */
 class Terrain {
-  constructor() { this.cells = new Uint8Array(N * N); this.dirty = new Uint8Array(N * N); this.anyDirty = false; }
+  constructor() { this.cells = new Uint8Array(N * N); this.dirty = new Uint8Array(N * N); this.anyDirty = false; this.log = []; }
   get(bx, by) { return (bx < 0 || by < 0 || bx >= N || by >= N) ? T_STEEL : this.cells[by * N + bx]; }
   set(bx, by, t) {
     if (bx < 0 || by < 0 || bx >= N || by >= N) return;
     const i = by * N + bx;
-    if (this.cells[i] !== t) { this.cells[i] = t; this.dirty[i] = 1; this.anyDirty = true; }
+    if (this.cells[i] !== t) { this.cells[i] = t; this.dirty[i] = 1; this.anyDirty = true; this.log.push(i); }
   }
-  clear() { this.cells.fill(0); this.dirty.fill(0); this.anyDirty = false; }
+  clear() { this.cells.fill(0); this.dirty.fill(0); this.anyDirty = false; this.log.length = 0; }
   clearDirty() { if (this.anyDirty) { this.dirty.fill(0); this.anyDirty = false; } }
   fillBits(bx, by, w, h, t) { for (let y = by; y < by + h; y++) for (let x = bx; x < bx + w; x++) this.set(x, y, t); }
   fillUnits(x, y, w, h, t) { this.fillBits((x / 4) | 0, (y / 4) | 0, (w / 4) | 0, (h / 4) | 0, t); }
@@ -267,6 +289,7 @@ const sfx = {
   },
   toggleMute() { this.muted = !this.muted; if (this.master) this.master.gain.value = this.muted ? 0 : 0.7; },
   play(id, vol = 1, rate = 1) {
+    netEvent(['a', id, vol, rate]);
     if (!this.ctx || !this.bufs[id]) return;
     const now = performance.now();
     if (now - this.last[id] < 35) return;
@@ -281,19 +304,27 @@ const sfx = {
 
 /* ------------------------------------------------------------ estado */
 const S = { TITLE: 0, INTRO: 1, PLAYING: 2, CLEAR: 3, TALLY: 4, OVER: 5 };
-const CORE_X = 120, CORE_Y = 240, PLAYER_X = 80, PLAYER_Y = 240, PER_STAGE = 20;
+const CORE_X = 120, CORE_Y = 240, PLAYER_Y = 240, PER_STAGE = 20;
+const PLAYER_XS = [80, 160];
+const PLAYER_COLORS = [0x35D0C8, 0x7C8CFF];
 const SPAWN_X = [120, 240, 0], CARRIERS = [3, 10, 17], MAX_PARTICLES = 500;
+const HI_KEYS = ['bastion-hi', 'bastion-hi-coop'];
 
-function loadHi() { try { return parseInt(localStorage.getItem('bastion-hi') || '0', 10) || 0; } catch (e) { return 0; } }
-function storeHi(v) { try { localStorage.setItem('bastion-hi', String(v)); } catch (e) { /* almacenamiento no disponible */ } }
+function loadHi(coop) { try { return parseInt(localStorage.getItem(HI_KEYS[coop ? 1 : 0]) || '0', 10) || 0; } catch (e) { return 0; } }
+function storeHi(coop, v) { try { localStorage.setItem(HI_KEYS[coop ? 1 : 0], String(v)); } catch (e) { /* almacenamiento no disponible */ } }
+
+const makePlayer = pid => Object.assign(makeTank(true), { pid, lives: 3, score: 0, respawnTimer: 0, stun: 0, inGame: pid === 0 });
 
 const G = {
-  state: S.TITLE, paused: false, terrain: new Terrain(), stage: 1, score: 0, hiScore: loadHi(), startHi: 0,
-  newRecord: false, lives: 3, player: makeTank(true), enemies: [], bullets: [], particles: [], popups: [],
-  power: null, coreAlive: true, queue: [], spawned: 0, spawnTimer: 0, spawnIdx: 0, respawnTimer: 0,
+  state: S.TITLE, paused: false, terrain: new Terrain(), stage: 1, coop: false, hiScore: loadHi(false), startHi: 0,
+  newRecord: false, players: [makePlayer(0), makePlayer(1)], enemies: [], bullets: [], particles: [], popups: [],
+  power: null, coreAlive: true, queue: [], spawned: 0, spawnTimer: 0, spawnIdx: 0,
   stasis: 0, fortify: 0, fortifySteel: false, stateTimer: 0, tallyTime: 0, kills: [0, 0, 0, 0], shake: 0,
   time: 0, overReason: '', stageName: '', bannerText: '', bannerTime: 0, waterBlocks: [], terrainEpoch: 0,
 };
+const teamScore = () => G.players.reduce((a, p) => a + (p.inGame ? p.score : 0), 0);
+const otherPlayer = p => G.players[1 - p.pid];
+
 const input = {
   keyDir: -1, padDir: -1, touchDir: -1, fireKey: false, firePad: false, fireTouch: false,
   joyActive: false, joyOX: 0, joyOY: 0, joyKX: 0, joyKY: 0,
@@ -311,6 +342,10 @@ const input = {
   joyRelease() { this.joyActive = false; this.touchDir = -1; },
   releaseAll() { this.keyDir = this.padDir = this.touchDir = -1; this.fireKey = this.firePad = this.fireTouch = false; this.joyActive = false; },
 };
+/* Controles del jugador 2 cuando juega online (los recibe el anfitrión). */
+const remoteInput = { d: -1, f: false };
+const ctrlDir = p => p.pid === 0 ? input.dir() : remoteInput.d;
+const ctrlFire = p => p.pid === 0 ? input.fire() : remoteInput.f;
 
 /* ------------------------------------------------------------ flujo */
 function update(dt) {
@@ -337,36 +372,36 @@ function update(dt) {
   }
 }
 
-function onTap(x, y) {
-  if (G.paused) {
-    if (inRect(L.resumeRect, x, y)) resume();
-    else if (inRect(L.quitRect, x, y)) toTitle();
-    return;
-  }
-  confirm();
-}
-function confirm() {
-  if (G.paused) { resume(); return; }
-  if (G.state === S.TITLE) startGame();
-  else if (G.state === S.TALLY) { if (G.tallyTime > 1.2) nextStage(); }
-  else if (G.state === S.OVER) { if (G.stateTimer <= 0) toTitle(); }
-}
 const canPause = () => G.state === S.INTRO || G.state === S.PLAYING || G.state === S.CLEAR;
-function togglePause() {
-  if (G.paused) resume();
-  else if (canPause()) { G.paused = true; resetInputs(); sfx.play(SFX.BLIP); }
-}
+function pauseGame() { if (!G.paused && canPause()) { G.paused = true; resetInputs(); sfx.play(SFX.BLIP); } }
+function resumeGame() { if (G.paused) { G.paused = false; resetInputs(); sfx.play(SFX.BLIP); } }
 function autoPause() { if (canPause()) G.paused = true; resetInputs(); saveHi(); }
-function resume() { G.paused = false; resetInputs(); sfx.play(SFX.BLIP); }
 
-function startGame() {
-  G.stage = 1; G.score = 0; G.lives = 3; G.player.rank = 0; G.startHi = G.hiScore; G.newRecord = false;
+/* Avanzar en pantallas de resumen / fin de partida (lo decide el anfitrión). */
+function hostConfirm() {
+  if (G.paused) { resumeGame(); return; }
+  if (G.state === S.TALLY) { if (G.tallyTime > 1.2) nextStage(); }
+  else if (G.state === S.OVER && G.stateTimer <= 0) {
+    if (G.coop && NET.role === 'host') startGame(true); else toTitle();
+  }
+}
+
+function startGame(coop) {
+  G.coop = coop; G.stage = 1; G.newRecord = false;
+  G.players.forEach(p => {
+    p.inGame = p.pid === 0 || coop; p.lives = p.inGame ? 3 : 0; p.score = 0; p.rank = 0;
+    p.alive = false; p.stun = 0; p.respawnTimer = 0;
+  });
+  G.hiScore = loadHi(coop); G.startHi = G.hiScore;
+  remoteInput.d = -1; remoteInput.f = false;
   loadStage();
 }
 function nextStage() { G.stage++; loadStage(); }
 function toTitle() {
-  saveHi(); G.paused = false; G.state = S.TITLE;
+  saveHi(); G.paused = false; G.state = S.TITLE; G.coop = false;
   G.enemies = []; G.bullets = []; G.particles = []; G.popups = []; G.power = null;
+  G.players[1].inGame = false;
+  G.hiScore = loadHi(false);
   resetInputs();
 }
 
@@ -375,17 +410,21 @@ function loadStage() {
   t.clear();
   G.stageName = buildSector(G.stage, t);
   for (const sx of SPAWN_X) t.fillUnits(sx, 0, 16, 16, T_EMPTY);
-  t.fillUnits(PLAYER_X, PLAYER_Y, 16, 16, T_EMPTY);
+  for (const px of PLAYER_XS) t.fillUnits(px, PLAYER_Y, 16, 16, T_EMPTY);
   t.fillUnits(104, 224, 48, 32, T_EMPTY);
   G.enemies = []; G.bullets = []; G.particles = []; G.popups = [];
-  G.player.alive = false;
+  for (const p of G.players) p.alive = false;
   buildFortress(T_BRICK);
   computeWater();
   G.terrainEpoch++;
   G.power = null; G.stasis = 0; G.fortify = 0; G.coreAlive = true;
   G.queue = makeQueue(G.stage); G.spawned = 0; G.spawnIdx = 0; G.spawnTimer = 0.8;
   G.kills = [0, 0, 0, 0]; G.bannerTime = 0;
-  resetPlayer(2.5);
+  for (const p of G.players) {
+    if (!p.inGame) continue;
+    if (p.lives <= 0) p.lives = 1; // en cooperativo, quien se quedó sin tanques vuelve en el sector siguiente
+    resetPlayer(p, 2.5);
+  }
   G.state = S.INTRO; G.stateTimer = 2.2; G.paused = false;
   resetInputs();
   sfx.play(SFX.STAGE);
@@ -403,11 +442,11 @@ function makeQueue(s) {
   for (let i = list.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [list[i], list[j]] = [list[j], list[i]]; }
   return list;
 }
-const maxActive = () => G.stage <= 3 ? 4 : G.stage <= 7 ? 5 : 6;
-const spawnInterval = () => Math.max(1.4, 3.2 - G.stage * 0.15);
+const maxActive = () => (G.stage <= 3 ? 4 : G.stage <= 7 ? 5 : 6) + (G.coop ? 1 : 0);
+const spawnInterval = () => Math.max(1.4, 3.2 - G.stage * 0.15) * (G.coop ? 0.85 : 1);
 const fireFactor = () => Math.max(0.55, 1 - (G.stage - 1) * 0.04);
 const coreBias = () => Math.min(0.6, 0.25 + G.stage * 0.03);
-const reserve = () => G.queue.length - G.spawned;
+const reserve = () => NET.role === 'guest' ? NET.reserve : G.queue.length - G.spawned;
 
 function computeWater() {
   G.waterBlocks = [];
@@ -420,17 +459,18 @@ function buildFortress(t) {
     G.terrain.set(bx, by, t);
   }
 }
-function resetPlayer(shield) {
-  const p = G.player;
-  p.alive = true; p.x = PLAYER_X; p.y = PLAYER_Y; p.dir = UP; p.spawnTimer = 0.7; p.shield = shield;
-  p.flash = 0; p.cooldown = 0; p.speed = 46;
+function resetPlayer(p, shield) {
+  p.alive = true; p.x = PLAYER_XS[p.pid]; p.y = PLAYER_Y; p.dir = UP; p.spawnTimer = 0.7; p.shield = shield;
+  p.flash = 0; p.cooldown = 0; p.speed = 46; p.stun = 0; p.respawnTimer = 0;
 }
 function saveHi() {
-  if (G.score > G.hiScore) G.hiScore = G.score;
-  if (G.score > G.startHi && G.score > 0) G.newRecord = true;
-  storeHi(G.hiScore);
+  if (NET.role === 'guest') return;
+  const score = teamScore();
+  if (score > G.hiScore) G.hiScore = score;
+  if (score > G.startHi && score > 0) G.newRecord = true;
+  storeHi(G.coop, G.hiScore);
 }
-function addScore(n) { G.score += n; if (G.score > G.hiScore) G.hiScore = G.score; }
+function addScore(p, n) { if (p) p.score += n; const s = teamScore(); if (s > G.hiScore) G.hiScore = s; }
 
 /* ------------------------------------------------------------ simulación */
 function world(dt) {
@@ -445,7 +485,7 @@ function world(dt) {
       if (steel !== G.fortifySteel) { G.fortifySteel = steel; buildFortress(steel ? T_STEEL : T_BRICK); }
     }
   }
-  updatePlayer(dt);
+  for (const p of G.players) if (p.inGame) updatePlayer(p, dt);
   if (G.state === S.PLAYING) updateSpawner(dt);
   updateEnemies(dt);
   updateBullets(dt);
@@ -455,20 +495,20 @@ function world(dt) {
   G.enemies = G.enemies.filter(e => e.alive);
 }
 
-function updatePlayer(dt) {
-  const p = G.player;
+function updatePlayer(p, dt) {
   if (!p.alive) {
-    if (G.respawnTimer > 0) { G.respawnTimer -= dt; if (G.respawnTimer <= 0 && G.state !== S.OVER) resetPlayer(3); }
+    if (p.respawnTimer > 0) { p.respawnTimer -= dt; if (p.respawnTimer <= 0 && G.state !== S.OVER) resetPlayer(p, 3); }
     return;
   }
   if (p.flash > 0) p.flash -= dt;
   if (p.spawnTimer > 0) { p.spawnTimer -= dt; return; }
   if (p.shield > 0) p.shield -= dt;
+  if (p.stun > 0) { p.stun -= dt; return; }
   if (G.state === S.OVER) return;
-  const d = input.dir();
+  const d = ctrlDir(p);
   if (d >= 0) moveTank(p, d, p.speed * dt);
   p.cooldown -= dt;
-  if (input.fire() && p.cooldown <= 0 && fire(p)) p.cooldown = p.rank >= 2 ? 0.16 : 0.26;
+  if (ctrlFire(p) && p.cooldown <= 0 && fire(p)) p.cooldown = p.rank >= 2 ? 0.16 : 0.26;
 }
 
 function updateSpawner(dt) {
@@ -486,6 +526,16 @@ function updateSpawner(dt) {
   G.enemies.push(e);
   G.spawned++;
   G.spawnTimer = spawnInterval();
+}
+
+function nearestPlayer(e) {
+  let best = null, bd = Infinity;
+  for (const p of G.players) {
+    if (!p.inGame || !isActive(p)) continue;
+    const d = Math.abs(p.x - e.x) + Math.abs(p.y - e.y);
+    if (d < bd) { bd = d; best = p; }
+  }
+  return best;
 }
 
 function updateEnemies(dt) {
@@ -521,13 +571,14 @@ function aligned(e, tx, ty) {
     default: return Math.abs(ty - cy) < 6 && tx > cx;
   }
 }
-const lineOfFire = e => (isActive(G.player) && aligned(e, G.player.x + 8, G.player.y + 8)) || (G.coreAlive && aligned(e, CORE_X + 8, CORE_Y + 8));
+const lineOfFire = e => G.players.some(p => p.inGame && isActive(p) && aligned(e, p.x + 8, p.y + 8)) || (G.coreAlive && aligned(e, CORE_X + 8, CORE_Y + 8));
 function chooseDir(e, blocked) {
   const r = Math.random();
   let d;
   if (r < 0.5) {
-    const useCore = !isActive(G.player) || Math.random() < coreBias();
-    const tx = useCore ? CORE_X + 8 : G.player.x + 8, ty = useCore ? CORE_Y + 8 : G.player.y + 8;
+    const target = nearestPlayer(e);
+    const useCore = !target || Math.random() < coreBias();
+    const tx = useCore ? CORE_X + 8 : target.x + 8, ty = useCore ? CORE_Y + 8 : target.y + 8;
     const dx = tx - (e.x + 8), dy = ty - (e.y + 8);
     const horizontal = (Math.abs(dx) > Math.abs(dy)) !== (Math.random() < 0.3);
     d = horizontal ? (dx > 0 ? RIGHT : LEFT) : (dy > 0 ? DOWN : UP);
@@ -540,19 +591,19 @@ function chooseDir(e, blocked) {
 
 const overlap = (ax, ay, aw, ah, bx, by, bw, bh) => ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
 function anyTankOverlap(x, y, w, h) {
-  if (G.player.alive && overlap(x, y, w, h, G.player.x, G.player.y, 16, 16)) return true;
+  for (const p of G.players) if (p.inGame && p.alive && overlap(x, y, w, h, p.x, p.y, 16, 16)) return true;
   for (const e of G.enemies) if (e.alive && overlap(x, y, w, h, e.x, e.y, 16, 16)) return true;
   return false;
 }
 function tankBlocks(t, o, x, y) {
-  if (o === t || !o.alive) return false;
+  if (o === t || !o.alive || (o.isPlayer && !o.inGame)) return false;
   if (!overlap(x, y, 16, 16, o.x, o.y, 16, 16)) return false;
   return !overlap(t.x, t.y, 16, 16, o.x, o.y, 16, 16);
 }
 function blocked(t, x, y) {
   if (G.terrain.blocksTank(x, y, 16, 16)) return true;
   if (overlap(x, y, 16, 16, CORE_X, CORE_Y, 16, 16)) return true;
-  if (tankBlocks(t, G.player, x, y)) return true;
+  for (const p of G.players) if (tankBlocks(t, p, x, y)) return true;
   for (const e of G.enemies) if (tankBlocks(t, e, x, y)) return true;
   return false;
 }
@@ -587,7 +638,7 @@ function fire(t) {
   const spd = t.isPlayer ? (t.rank >= 1 ? 240 : 160) : t.kind.bullet;
   const bx = t.x + 8 + DX[t.dir] * 7, by = t.y + 8 + DY[t.dir] * 7;
   G.bullets.push({ x: bx, y: by, dir: t.dir, speed: spd, owner: t, power: t.isPlayer && t.rank >= 3, alive: true });
-  addParticle(bx, by, 0, 0, 0.07, 3, 0xFFE9A8);
+  muzzle(bx, by);
   if (t.isPlayer) sfx.play(SFX.SHOOT); else sfx.play(SFX.SHOOT, 0.22, 0.75);
   return true;
 }
@@ -616,12 +667,25 @@ function collideBullet(b) {
   if (G.coreAlive && overlap(l, t, 4, 4, CORE_X, CORE_Y, 16, 16)) { b.alive = false; destroyCore(); return; }
   if (G.terrain.blocksBullet(l, t, 4, 4)) { b.alive = false; impact(b); return; }
   if (b.owner.isPlayer) {
-    for (const e of G.enemies) if (isActive(e) && overlap(l, t, 4, 4, e.x, e.y, 16, 16)) { b.alive = false; hitEnemy(e); return; }
-  } else if (isActive(G.player) && overlap(l, t, 4, 4, G.player.x, G.player.y, 16, 16)) {
-    b.alive = false;
-    if (G.player.shield > 0) { sparks(b.x, b.y, 6, 0x7FF5EE); sfx.play(SFX.STEEL, 0.6, 1.3); }
-    else killPlayer();
-    return;
+    for (const e of G.enemies) if (isActive(e) && overlap(l, t, 4, 4, e.x, e.y, 16, 16)) { b.alive = false; hitEnemy(e, b.owner); return; }
+    const mate = otherPlayer(b.owner);
+    if (mate.inGame && isActive(mate) && overlap(l, t, 4, 4, mate.x, mate.y, 16, 16)) {
+      // Fuego amigo: aturde al compañero en lugar de destruirlo.
+      b.alive = false;
+      sparks(b.x, b.y, 6, 0xFFE9A8);
+      if (mate.shield <= 0) { mate.stun = 1.5; sfx.play(SFX.ARMOR); }
+      else sfx.play(SFX.STEEL, 0.6, 1.3);
+      return;
+    }
+  } else {
+    for (const p of G.players) {
+      if (p.inGame && isActive(p) && overlap(l, t, 4, 4, p.x, p.y, 16, 16)) {
+        b.alive = false;
+        if (p.shield > 0) { sparks(b.x, b.y, 6, 0x7FF5EE); sfx.play(SFX.STEEL, 0.6, 1.3); }
+        else killPlayer(p);
+        return;
+      }
+    }
   }
   for (const o of G.bullets) {
     if (o !== b && o.alive && o.owner.isPlayer !== b.owner.isPlayer && overlap(l - 0.5, t - 0.5, 5, 5, o.x - 2, o.y - 2, 4, 4)) {
@@ -663,30 +727,30 @@ function impact(b) {
     sfx.play(SFX.BRICK, vol);
   }
 }
-function hitEnemy(e) {
+function hitEnemy(e, by) {
   if (e.carrier) { e.carrier = false; spawnPowerUp(); }
   e.hp--; e.flash = 0.12;
-  if (e.hp <= 0) destroyEnemy(e);
+  if (e.hp <= 0) destroyEnemy(e, by);
   else { sparks(e.x + 8, e.y + 8, 7, 0xE6EAF0); sfx.play(SFX.ARMOR); }
 }
-function destroyEnemy(e) {
+function destroyEnemy(e, by) {
   e.alive = false;
-  addScore(e.kind.points);
+  addScore(by, e.kind.points);
   G.kills[e.kind.i]++;
-  G.popups.push({ x: e.x + 8, y: e.y + 6, text: String(e.kind.points), color: 0xFFFFFF, life: 1.1 });
+  popup(e.x + 8, e.y + 6, String(e.kind.points), by && G.coop ? tint(PLAYER_COLORS[by.pid], 0.45) : 0xFFFFFF);
   explosion(e.x + 8, e.y + 8, true);
   sfx.play(SFX.EXPLODE);
   G.shake = Math.max(G.shake, 0.15);
 }
-function killPlayer() {
-  const p = G.player;
+function killPlayer(p) {
   if (!p.alive) return;
-  p.alive = false; p.rank = 0;
+  p.alive = false; p.rank = 0; p.stun = 0;
   explosion(p.x + 8, p.y + 8, true);
   sfx.play(SFX.BIG);
   G.shake = 0.45;
-  G.lives--;
-  if (G.lives <= 0) gameOver('NO TANKS LEFT'); else G.respawnTimer = 1.4;
+  p.lives--;
+  if (p.lives > 0) p.respawnTimer = 1.4;
+  if (!G.players.some(q => q.inGame && (q.alive || q.lives > 0))) gameOver('NO TANKS LEFT');
 }
 function destroyCore() {
   if (!G.coreAlive) return;
@@ -719,37 +783,59 @@ function updatePower(dt) {
   if (!pw) return;
   pw.life -= dt;
   if (pw.life <= 0) { G.power = null; return; }
-  const p = G.player;
-  if (isActive(p) && overlap(p.x + 2, p.y + 2, 12, 12, pw.x, pw.y, 16, 16)) {
+  for (const p of G.players) {
+    if (!p.inGame || !isActive(p) || !overlap(p.x + 2, p.y + 2, 12, 12, pw.x, pw.y, 16, 16)) continue;
     G.power = null;
-    applyPower(pw.type.id);
-    addScore(500);
-    G.popups.push({ x: pw.x + 8, y: pw.y + 6, text: '500', color: pw.type.color, life: 1.1 });
-    G.bannerText = pw.type.label; G.bannerTime = 1.8;
+    const text = applyPower(pw.type.id, p);
+    addScore(p, 500);
+    popup(pw.x + 8, pw.y + 6, '500', pw.type.color);
+    G.bannerText = text || pw.type.label; G.bannerTime = 1.8;
     sfx.play(SFX.PICKUP);
+    return;
   }
 }
-function applyPower(id) {
-  const p = G.player;
+function applyPower(id, p) {
   switch (id) {
     case 'SHIELD': p.shield = Math.max(p.shield, 10); break;
     case 'OVERDRIVE': p.rank = Math.min(3, p.rank + 1); break;
-    case 'REPAIR': G.lives = Math.min(G.lives + 1, 9); break;
+    case 'REPAIR': {
+      const mate = otherPlayer(p);
+      if (G.coop && mate.inGame && !mate.alive && mate.lives <= 0) {
+        mate.lives = 1; resetPlayer(mate, 3);
+        return 'TEAMMATE REVIVED';
+      }
+      p.lives = Math.min(p.lives + 1, 9);
+      break;
+    }
     case 'STASIS': G.stasis = 8; break;
     case 'FORTIFY': G.fortify = 18; G.fortifySteel = true; buildFortress(T_STEEL); break;
     case 'NUKE':
-      for (const e of G.enemies) if (isActive(e)) destroyEnemy(e);
+      for (const e of G.enemies) if (isActive(e)) destroyEnemy(e, p);
       G.shake = 0.5; sfx.play(SFX.BIG, 0.8);
       break;
   }
+  return '';
 }
 
-/* ------------------------------------------------------------ efectos */
+/* ------------------------------------------------------------ efectos
+   En partidas online, el anfitrión registra cada efecto y se lo envía al invitado,
+   que los reproduce localmente (partículas y sonidos no forman parte del estado). */
+const r1 = v => Math.round(v * 10) / 10;
+function netEvent(ev) { if (NET.role === 'host' && NET.events.length < 300) NET.events.push(ev); }
 function addParticle(x, y, vx, vy, life, size, color, ring = false) {
   if (G.particles.length < MAX_PARTICLES) G.particles.push({ x, y, vx, vy, life, maxLife: life, size, color, ring });
 }
+function popup(x, y, text, color) {
+  netEvent(['p', r1(x), r1(y), text, color]);
+  G.popups.push({ x, y, text, color, life: 1.1 });
+}
+function muzzle(x, y) {
+  netEvent(['m', r1(x), r1(y)]);
+  addParticle(x, y, 0, 0, 0.07, 3, 0xFFE9A8);
+}
 const FIRE_COLORS = [0xFFF3B0, 0xFFC14D, 0xFF7A3D, 0xE04A2F, 0x7D838C];
 function explosion(x, y, big) {
+  netEvent(['x', r1(x), r1(y), big ? 1 : 0]);
   const n = big ? 28 : 8;
   for (let i = 0; i < n; i++) {
     const a = Math.random() * Math.PI * 2, sp = rand(8, big ? 75 : 40);
@@ -758,11 +844,25 @@ function explosion(x, y, big) {
   if (big) { addParticle(x, y, 0, 0, 0.16, 11, 0xFFF0C0); addParticle(x, y, 26, 0, 0.45, 3, 0xFFD27A, true); }
 }
 function sparks(x, y, n, color) {
+  netEvent(['s', r1(x), r1(y), n, color]);
   for (let i = 0; i < n; i++) { const a = Math.random() * Math.PI * 2, sp = rand(25, 70); addParticle(x, y, Math.cos(a) * sp, Math.sin(a) * sp, rand(0.1, 0.25), rand(0.5, 0.9), color); }
 }
 function debris(x, y, color) {
+  netEvent(['d', r1(x), r1(y), color]);
   for (let i = 0; i < 7; i++) { const a = Math.random() * Math.PI * 2, sp = rand(10, 45); addParticle(x, y, Math.cos(a) * sp, Math.sin(a) * sp, rand(0.25, 0.5), rand(0.6, 1.3), color); }
   addParticle(x, y, 0, 0, 0.1, 4, 0xFFE9A8);
+}
+function applyEvents(list) {
+  for (const ev of list) {
+    switch (ev[0]) {
+      case 'p': G.popups.push({ x: ev[1], y: ev[2], text: ev[3], color: ev[4], life: 1.1 }); break;
+      case 'm': addParticle(ev[1], ev[2], 0, 0, 0.07, 3, 0xFFE9A8); break;
+      case 'x': explosion(ev[1], ev[2], !!ev[3]); break;
+      case 's': sparks(ev[1], ev[2], ev[3], ev[4]); break;
+      case 'd': debris(ev[1], ev[2], ev[3]); break;
+      case 'a': sfx.play(ev[1], ev[2], ev[3]); break;
+    }
+  }
 }
 function updateFx(dt) {
   const damp = Math.max(0, 1 - 3 * dt);
@@ -963,7 +1063,7 @@ function drawWorld() {
   ctx.drawImage(terrainCv, 0, 0, 256, 256);
   drawCore();
   for (const e of G.enemies) if (e.alive) drawTankEntity(e);
-  if (G.player.alive) drawTankEntity(G.player);
+  for (const p of G.players) if (p.inGame && p.alive) drawTankEntity(p);
   for (const b of G.bullets) drawBullet(b);
   ctx.drawImage(forestCv, 0, 0, 256, 256);
   if (G.power) drawPowerUp(G.power);
@@ -1031,10 +1131,15 @@ const enemyColor = e => e.kind.i === 3 ? BULWARK_HP[Math.min(3, Math.max(0, e.hp
 function drawTankEntity(t) {
   const cx = t.x + 8, cy = t.y + 8;
   if (t.spawnTimer > 0) { drawWarp(cx, cy, t.isPlayer); return; }
-  let body = t.isPlayer ? PLAYER : enemyColor(t);
+  let body = t.isPlayer ? PLAYER_COLORS[t.pid] : enemyColor(t);
   if (!t.isPlayer && t.carrier && (((G.time * 7) | 0) & 1) === 0) body = 0xFF6FD8;
   if (t.flash > 0) body = 0xFFFFFF;
-  drawTank(cx, cy, t.dir, body, t.isPlayer ? -1 : t.kind.i, t.tread, t.rank);
+  drawTank(cx, cy, t.dir, body, t.isPlayer ? -1 - t.pid : t.kind.i, t.tread, t.rank);
+  if (t.isPlayer && t.stun > 0) {
+    fillC(0xFFE45C);
+    for (let i = 0; i < 3; i++) { const a = G.time * 6 + i * 2.094; circle(ctx, cx + Math.cos(a) * 7, cy - 10 + Math.sin(a) * 2, 1.1); ctx.fill(); }
+  }
+  if (t.isPlayer && G.coop) label(`P${t.pid + 1}`, cx, cy - 10.5, 5, tint(PLAYER_COLORS[t.pid], 0.3), 'center', 0.9);
   if (!t.isPlayer && G.stasis > 0) {
     fillC(0xA8D8FF, 0.4); rrPath(ctx, cx - 8, cy - 8, 16, 16, 2); ctx.fill();
     ctx.strokeStyle = css(0xE6F6FF, 0.8); ctx.lineWidth = 0.4; ctx.beginPath();
@@ -1087,8 +1192,10 @@ function drawTank(cx, cy, dir, body, style, tread, rank) {
   const tr = style === 3 ? 4 : style === 1 ? 3 : 3.5;
   circle(ctx, 0, 0.8, tr); fillC(light); ctx.fill();
   ctx.strokeStyle = css(dark); ctx.lineWidth = 0.5; ctx.stroke();
-  if (style === -1) {
-    fillC(0x0B3B3B); ctx.beginPath(); ctx.moveTo(0, -1.4); ctx.lineTo(1.6, 0.8); ctx.lineTo(0, 3); ctx.lineTo(-1.6, 0.8); ctx.closePath(); ctx.fill();
+  if (style < 0) {
+    fillC(shade(body, 0.7));
+    if (style === -1) { ctx.beginPath(); ctx.moveTo(0, -1.4); ctx.lineTo(1.6, 0.8); ctx.lineTo(0, 3); ctx.lineTo(-1.6, 0.8); ctx.closePath(); ctx.fill(); }
+    else { circle(ctx, 0, 0.8, 1.6); ctx.fill(); }
     fillC(0xFFD84A); for (let i = 0; i < rank; i++) { circle(ctx, -2.4 + i * 2.4, 5.2, 0.65); ctx.fill(); }
   } else { fillC(dark); circle(ctx, 0, 0.8, tr * 0.35); ctx.fill(); }
   ctx.restore();
@@ -1133,6 +1240,7 @@ function drawParticles() {
 }
 
 /* ---------- marcador */
+const localPid = () => NET.role === 'guest' ? 1 : 0;
 function drawMiniTank(x, y, s, color) {
   fillC(TREAD);
   ctx.fillRect(x - s * 0.5, y - s * 0.45, s * 0.28, s * 0.9);
@@ -1149,26 +1257,52 @@ function drawPauseButton() {
   const bw = rw(pr) * 0.1, bh = rw(pr) * 0.32;
   ctx.fillRect(cx - bw * 2, cy - bh, bw, bh * 2); ctx.fillRect(cx + bw, cy - bh, bw, bh * 2);
 }
+function drawRank(cx, y, f, rank) {
+  for (let i = 0; i < 3; i++) {
+    const x = cx + (i - 1) * f * 0.9;
+    ctx.beginPath(); ctx.moveTo(x, y - f * 0.35); ctx.lineTo(x + f * 0.3, y); ctx.lineTo(x, y + f * 0.35); ctx.lineTo(x - f * 0.3, y); ctx.closePath();
+    fillC(i < rank ? 0xFFD84A : 0x2A313B); ctx.fill();
+  }
+}
+function drawPlayerBlock(p, cx, y, f) {
+  const col = PLAYER_COLORS[p.pid];
+  const you = NET.role && p.pid === localPid() ? ' (YOU)' : '';
+  label(`PLAYER ${p.pid + 1}${you}`, cx, y, f * 0.62, col);
+  label(String(p.score), cx, y + f * 1.15, f * 1.1, TEXT);
+  drawMiniTank(cx - f * 1.0, y + f * 2.15, f * 0.95, col);
+  label(`× ${Math.max(p.lives, 0)}`, cx - f * 0.2, y + f * 2.5, f * 0.9, p.lives > 0 || p.alive ? TEXT : 0xFF6B5A, 'left');
+  drawRank(cx, y + f * 3.4, f * 0.85, p.rank);
+}
 function drawHud() {
-  const f = L.font;
+  const f = L.font, p0 = G.players[0], p1 = G.players[1];
   drawPauseButton();
   if (L.portrait) {
     const y = rcy(L.pauseRect) + f * 0.35, x0 = L.pauseRect.r + f;
     label(`SECTOR ${G.stage}`, x0, y, f, ACCENT, 'left');
-    label(String(G.score), L.w / 2, y, f * 1.1, TEXT);
-    drawMiniTank(L.w - f * 6, y - f * 0.35, f * 0.9, PLAYER);
-    label(`×${G.lives}`, L.w - f * 5.2, y, f, TEXT, 'left');
+    if (G.coop) {
+      label(`P1 ${p0.score} ×${p0.lives}`, L.w * 0.52, y, f * 0.85, PLAYER_COLORS[0]);
+      label(`P2 ${p1.score} ×${p1.lives}`, L.w * 0.76, y, f * 0.85, PLAYER_COLORS[1]);
+    } else {
+      label(String(p0.score), L.w / 2, y, f * 1.1, TEXT);
+      drawMiniTank(L.w - f * 6, y - f * 0.35, f * 0.9, PLAYER_COLORS[0]);
+      label(`×${p0.lives}`, L.w - f * 5.2, y, f, TEXT, 'left');
+    }
     drawMiniTank(L.w - f * 2.8, y - f * 0.35, f * 0.9, 0x8A93A0);
     label(String(reserve()), L.w - f * 2, y, f, TEXT, 'left');
     return;
   }
   const lx = rcx(L.left);
   let y = L.pauseRect.b + f * 1.8;
-  label('SCORE', lx, y, f * 0.7, MUTED);
-  label(String(G.score), lx, y + f * 1.3, f * 1.25, TEXT);
-  y += f * 3.2;
-  label('BEST', lx, y, f * 0.7, MUTED);
-  label(String(G.hiScore), lx, y + f * 1.3, f * 1.05, ACCENT);
+  if (G.coop) {
+    drawPlayerBlock(p0, lx, y, f);
+    drawPlayerBlock(p1, lx, y + f * 4.9, f);
+  } else {
+    label('SCORE', lx, y, f * 0.7, MUTED);
+    label(String(p0.score), lx, y + f * 1.3, f * 1.25, TEXT);
+    y += f * 3.2;
+    label('BEST', lx, y, f * 0.7, MUTED);
+    label(String(G.hiScore), lx, y + f * 1.3, f * 1.05, ACCENT);
+  }
 
   const rx = rcx(L.right);
   y = f * 1.6;
@@ -1178,23 +1312,30 @@ function drawHud() {
   const s = Math.min(f * 0.85, rw(L.right) / 7.5), gap = s * 1.3, x0 = rx - gap * 2;
   for (let i = 0; i < reserve(); i++) drawMiniTank(x0 + (i % 5) * gap, y + s * 0.6 + Math.floor(i / 5) * gap, s, 0x8A93A0);
   y += gap * 4 + f * 0.9;
-  drawMiniTank(rx - f * 1.1, y - f * 0.35, f * 1.1, PLAYER);
-  label(`× ${Math.max(G.lives, 0)}`, rx - f * 0.2, y, f * 1.05, TEXT, 'left');
-  y += f * 1.4;
-  for (let i = 0; i < 3; i++) {
-    const cx = rx + (i - 1) * f * 0.9;
-    ctx.beginPath(); ctx.moveTo(cx, y - f * 0.35); ctx.lineTo(cx + f * 0.3, y); ctx.lineTo(cx, y + f * 0.35); ctx.lineTo(cx - f * 0.3, y); ctx.closePath();
-    fillC(i < G.player.rank ? 0xFFD84A : 0x2A313B); ctx.fill();
+  if (G.coop) {
+    label('TEAM', rx, y, f * 0.62, MUTED);
+    label(String(teamScore()), rx, y + f * 1.1, f * 1.05, TEXT);
+    y += f * 2.2;
+    label(`BEST ${G.hiScore}`, rx, y, f * 0.7, ACCENT);
+  } else {
+    drawMiniTank(rx - f * 1.1, y - f * 0.35, f * 1.1, PLAYER_COLORS[0]);
+    label(`× ${Math.max(p0.lives, 0)}`, rx - f * 0.2, y, f * 1.05, TEXT, 'left');
+    y += f * 1.4;
+    drawRank(rx, y, f, p0.rank);
   }
   if (G.stasis > 0 || G.fortify > 0) {
     y += f * 1.2;
     const txt = G.stasis > 0 ? `STASIS ${Math.ceil(G.stasis)}` : `FORT ${Math.ceil(G.fortify)}`;
     label(txt, rx, y, f * 0.65, G.stasis > 0 ? 0xA8D8FF : STEEL_HI);
   }
+  if (NET.role) {
+    const ms = Math.round(NET.ping);
+    label(`ONLINE${ms ? ` · ${ms} ms` : ''}`, rx, L.h - f * 0.9, f * 0.55, ms > 180 ? 0xFFB347 : 0x7CF08A);
+  }
 }
 function drawKeyHints() {
   if (L.portrait) return;
-  const f = L.font;
+  const f = L.font * (G.coop ? 0.85 : 1);
   const rows = [['MOVE', 'Arrows / WASD'], ['FIRE', 'Space'], ['PAUSE', 'P / Esc'], ['SOUND', sfx.muted ? 'M (muted)' : 'M']];
   let y = L.h - f * (rows.length * 1.9 + 0.6);
   const lx = rcx(L.left);
@@ -1237,25 +1378,34 @@ function drawControls() {
 }
 
 /* ---------- superposiciones */
+const continueText = () => touchMode ? 'Tap to continue' : 'Press Enter to continue';
 function drawIntro() {
-  const t = G.stateTimer, a = t > 0.6 ? 1 : t / 0.6, half = L.mapSize / 2 * a;
+  const t = G.stateTimer, a = t > 0.6 ? 1 : Math.max(0, t / 0.6), half = L.mapSize / 2 * a;
   fillC(0x0D1117);
   ctx.fillRect(L.mapX, L.mapY, L.mapSize, half);
   ctx.fillRect(L.mapX, L.mapY + L.mapSize - half, L.mapSize, half);
   const cx = L.mapX + L.mapSize / 2, cy = L.mapY + L.mapSize / 2, s = L.mapSize;
   label(`SECTOR ${G.stage}`, cx, cy - s * 0.01, s * 0.1, ACCENT, 'center', a, 0.2);
   label(G.stageName.toUpperCase(), cx, cy + s * 0.08, s * 0.05, TEXT, 'center', a);
-  label('Defend the core', cx, cy + s * 0.15, s * 0.035, MUTED, 'center', a);
+  label(G.coop ? 'Defend the core together' : 'Defend the core', cx, cy + s * 0.15, s * 0.035, MUTED, 'center', a);
 }
 function drawOver() {
   const prog = clamp01((3 - G.stateTimer) / 1.2);
   fillC(0x05070A, prog * 0.75); ctx.fillRect(L.mapX, L.mapY, L.mapSize, L.mapSize);
-  const cx = L.mapX + L.mapSize / 2, s = L.mapSize, cy = L.mapY + s * 0.42 + (1 - prog) * s * 0.3;
+  const cx = L.mapX + L.mapSize / 2, s = L.mapSize, cy = L.mapY + s * 0.4 + (1 - prog) * s * 0.3;
   label('GAME OVER', cx, cy, s * 0.11, 0xFF6B5A, 'center', prog, 0.15);
   label(G.overReason, cx, cy + s * 0.08, s * 0.04, TEXT, 'center', prog);
-  label(`SCORE  ${G.score}`, cx, cy + s * 0.17, s * 0.055, ACCENT, 'center', prog);
-  if (G.newRecord && (((G.time * 3) | 0) & 1) === 0) label('NEW HIGH SCORE!', cx, cy + s * 0.25, s * 0.045, 0xFFD84A, 'center', prog);
-  if (G.stateTimer <= 0 && (((G.time * 2) | 0) & 1) === 0) label(touchMode ? 'Tap to continue' : 'Press Enter to continue', cx, L.mapY + s * 0.9, s * 0.04, MUTED);
+  label(`${G.coop ? 'TEAM SCORE' : 'SCORE'}  ${teamScore()}`, cx, cy + s * 0.17, s * 0.055, ACCENT, 'center', prog);
+  let y = cy + s * 0.25;
+  if (G.coop) {
+    label(`P1  ${G.players[0].score}     P2  ${G.players[1].score}`, cx, y, s * 0.04, TEXT, 'center', prog);
+    y += s * 0.07;
+  }
+  if (G.newRecord && (((G.time * 3) | 0) & 1) === 0) label('NEW HIGH SCORE!', cx, y, s * 0.045, 0xFFD84A, 'center', prog);
+  if (G.stateTimer <= 0 && (((G.time * 2) | 0) & 1) === 0) {
+    const t = G.coop ? (touchMode ? 'Tap to play again' : 'Press Enter to play again') : continueText();
+    label(t, cx, L.mapY + s * 0.92, s * 0.04, MUTED);
+  }
 }
 function button(r, s, color, f) {
   rrPath(ctx, r.l, r.t, rw(r), r.b - r.t, f * 0.5);
@@ -1268,7 +1418,7 @@ function drawPause() {
   const f = L.font;
   label('PAUSED', L.w / 2, L.resumeRect.t - f * 1.6, f * 2.4, TEXT, 'center', 1, 0.3);
   button(L.resumeRect, 'RESUME', PLAYER, f);
-  button(L.quitRect, 'QUIT TO MENU', 0xFF7A59, f);
+  button(L.quitRect, NET.role ? 'LEAVE GAME' : 'QUIT TO MENU', 0xFF7A59, f);
 }
 
 /* ---------- pantallas */
@@ -1289,35 +1439,57 @@ function drawBrickBand(top, w, h) {
     }
   }
 }
+const TITLE_OPTS = [
+  { id: 'solo', label: '1 PLAYER' },
+  { id: 'host', label: 'ONLINE CO-OP · CREATE ROOM' },
+  { id: 'join', label: 'ONLINE CO-OP · JOIN ROOM' },
+];
+let titleSel = 0;
+const titleRects = [];
 function drawTitle() {
   const w = L.w, h = L.h, u = Math.min(h, w * 0.6), cx = w / 2;
   drawBackdrop();
-  const bandH = u * 0.08;
+  const bandH = u * 0.06;
   drawBrickBand(h - bandH, w, bandH);
-  label('STEEL', cx + u * 0.008, h * 0.27 + u * 0.008, u * 0.17, 0x0B3B3B, 'center', 1, 0.06);
-  label('STEEL', cx, h * 0.27, u * 0.17, TEXT, 'center', 1, 0.06);
-  label('BASTION', cx, h * 0.37, u * 0.07, ACCENT, 'center', 1, 0.45);
-  const k = u * 0.11 / 16, ty = h * 0.53;
-  ctx.save(); ctx.translate(cx, ty); ctx.scale(k, k); drawTank(0, 0, UP, PLAYER, -1, G.time * 25, 0); ctx.restore();
+  label('STEEL', cx + u * 0.008, h * 0.2 + u * 0.008, u * 0.15, 0x0B3B3B, 'center', 1, 0.06);
+  label('STEEL', cx, h * 0.2, u * 0.15, TEXT, 'center', 1, 0.06);
+  label('BASTION', cx, h * 0.29, u * 0.062, ACCENT, 'center', 1, 0.45);
+  const k = u * 0.095 / 16, ty = h * 0.4;
+  ctx.save(); ctx.translate(cx - u * 0.055, ty); ctx.scale(k, k); drawTank(0, 0, UP, PLAYER_COLORS[0], -1, G.time * 25, 0); ctx.restore();
+  ctx.save(); ctx.translate(cx + u * 0.055, ty); ctx.scale(k, k); drawTank(0, 0, UP, PLAYER_COLORS[1], -2, G.time * 25, 0); ctx.restore();
   KINDS.forEach((kind, i) => {
-    const side = i % 2 === 0 ? -1 : 1, ex = cx + side * u * (0.32 + Math.floor(i / 2) * 0.2);
+    const side = i % 2 === 0 ? -1 : 1, ex = cx + side * u * (0.3 + Math.floor(i / 2) * 0.17);
     const bob = Math.sin(G.time * 2 + i) * u * 0.006;
     ctx.save(); ctx.translate(ex, ty + bob); ctx.scale(k * 0.8, k * 0.8);
     drawTank(0, 0, side < 0 ? RIGHT : LEFT, kind.color, i, G.time * 12, 0);
     ctx.restore();
   });
-  if ((((G.time * 1.6) | 0) & 1) === 0) label(touchMode ? 'TAP TO START' : 'PRESS ENTER OR CLICK TO START', cx, h * 0.72, u * 0.055, TEXT);
-  label(`BEST  ${G.hiScore}`, cx, h * 0.8, u * 0.04, ACCENT);
+  label(`BEST  ${loadHi(false)}   ·   CO-OP BEST  ${loadHi(true)}`, cx, h * 0.5, u * 0.032, ACCENT);
+
+  const bw = Math.min(w * 0.8, u * 0.75), bh = u * 0.07, gap = u * 0.022;
+  let y = h * 0.555;
+  titleRects.length = 0;
+  TITLE_OPTS.forEach((o, i) => {
+    const r = { id: o.id, l: cx - bw / 2, t: y, r: cx + bw / 2, b: y + bh };
+    titleRects.push(r);
+    const sel = i === titleSel;
+    rrPath(ctx, r.l, r.t, bw, bh, bh * 0.3);
+    fillC(i === 0 ? PLAYER : PLAYER_COLORS[1], sel ? 0.3 : 0.1); ctx.fill();
+    ctx.strokeStyle = css(i === 0 ? PLAYER : PLAYER_COLORS[1], sel ? 1 : 0.5); ctx.lineWidth = Math.max(1.5, bh * 0.05); ctx.stroke();
+    label(o.label, cx, y + bh * 0.66, bh * 0.4, TEXT, 'center', sel ? 1 : 0.8, 0.06);
+    y += bh + gap;
+  });
+  if (NET.notice && NET.noticeTime > 0) label(NET.notice, cx, y + u * 0.03, u * 0.032, 0xFF9A80);
   const hint = touchMode
-    ? 'Joystick on the left  ·  Fire on the right  ·  Protect the core'
-    : 'Arrows / WASD to move  ·  Space to fire  ·  P pause  ·  M sound';
-  label(hint, cx, h - bandH - u * 0.035, u * 0.032, MUTED);
+    ? 'Tap an option to play  ·  Joystick on the left, fire on the right'
+    : 'Up / Down to choose  ·  Enter to start  ·  Arrows / WASD + Space in game  ·  M sound';
+  label(hint, cx, h - bandH - u * 0.03, u * 0.028, MUTED);
 }
 function drawTally() {
   const w = L.w, h = L.h, u = Math.min(h, w * 0.6), cx = w / 2;
   drawBackdrop();
   label(`SECTOR ${G.stage} SECURED`, cx, h * 0.15, u * 0.075, ACCENT, 'center', 1, 0.12);
-  const rowH = u * 0.1, startY = h * 0.3;
+  const rowH = u * 0.09, startY = h * 0.28;
   const colIcon = cx - u * 0.42, colName = cx - u * 0.33, colCount = cx + u * 0.12, colPts = cx + u * 0.45;
   let total = 0;
   for (let i = 0; i < KINDS.length; i++) {
@@ -1330,23 +1502,352 @@ function drawTally() {
     total += G.kills[i];
   }
   if (G.tallyTime >= 0.4 + KINDS.length * 0.35) {
-    const y = startY + KINDS.length * rowH;
+    let y = startY + KINDS.length * rowH;
     fillC(0x2C3440); ctx.fillRect(colIcon - rowH * 0.4, y - rowH * 0.6, colPts - colIcon + rowH * 0.4, 2 * L.density);
     label('DESTROYED', colName, y, u * 0.05, MUTED, 'left');
     label(String(total), colCount, y, u * 0.05, TEXT, 'right');
-    label(`SCORE  ${G.score}`, cx, y + rowH * 1.2, u * 0.065, ACCENT);
+    y += rowH * 1.2;
+    if (G.coop) {
+      label(`PLAYER 1  ${G.players[0].score}`, cx - u * 0.2, y, u * 0.05, PLAYER_COLORS[0]);
+      label(`PLAYER 2  ${G.players[1].score}`, cx + u * 0.2, y, u * 0.05, PLAYER_COLORS[1]);
+      y += rowH;
+      label(`TEAM SCORE  ${teamScore()}`, cx, y, u * 0.065, ACCENT);
+    } else label(`SCORE  ${teamScore()}`, cx, y, u * 0.065, ACCENT);
   }
-  if (G.tallyTime > 1.2 && (((G.time * 2) | 0) & 1) === 0) label(touchMode ? 'Tap to continue' : 'Press Enter to continue', cx, h * 0.93, u * 0.04, MUTED);
+  if (G.tallyTime > 1.2 && (((G.time * 2) | 0) & 1) === 0) label(continueText(), cx, h * 0.94, u * 0.04, MUTED);
 }
+
+/* ============================================================ red (cooperativo online)
+   El anfitrión ejecuta la simulación completa; el invitado envía sus controles y dibuja
+   el estado que recibe. La conexión es directa entre navegadores (WebRTC) mediante PeerJS. */
+const PEERJS_URL = 'https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js';
+const PEER_PREFIX = 'brightorbit-steelbastion-';
+const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+const ENEMY_OWNER = { isPlayer: false };
+const NET = {
+  role: null, peer: null, conn: null, code: '', events: [], reserve: 0, ping: 0, pingTimer: 0,
+  notice: '', noticeTime: 0, sentDir: -2, sentFire: null, snapAcc: 0, lastEpochSent: -1,
+  joinTimer: 0, leaving: false,
+  send(msg) { try { if (this.conn && this.conn.open) this.conn.send(msg); } catch (e) { /* canal cerrado */ } },
+};
+
+function loadPeerJS() {
+  return new Promise((resolve, reject) => {
+    if (window.Peer) { resolve(); return; }
+    const s = document.createElement('script');
+    s.src = PEERJS_URL; s.async = true;
+    s.onload = () => (window.Peer ? resolve() : reject(new Error('PeerJS unavailable')));
+    s.onerror = () => reject(new Error('PeerJS failed to load'));
+    document.head.appendChild(s);
+  });
+}
+function makeCode() { let c = ''; for (let i = 0; i < 5; i++) c += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]; return c; }
+const inviteLink = code => `${location.origin}${location.pathname}#join-${code}`;
+
+function netCleanup() {
+  clearTimeout(NET.joinTimer);
+  const { conn, peer } = NET;
+  NET.conn = null; NET.peer = null; NET.role = null; NET.events = []; NET.ping = 0;
+  NET.sentDir = -2; NET.sentFire = null; NET.lastEpochSent = -1;
+  remoteInput.d = -1; remoteInput.f = false;
+  try { if (conn) conn.close(); } catch (e) { /* ya cerrada */ }
+  try { if (peer) peer.destroy(); } catch (e) { /* ya cerrado */ }
+}
+function setNotice(text) { NET.notice = text; NET.noticeTime = 7; }
+function netErrorText(err) {
+  switch (err && err.type) {
+    case 'peer-unavailable': return 'Room not found. Check the code and make sure your friend is still waiting.';
+    case 'network': case 'server-error': case 'socket-error': case 'socket-closed':
+      return 'Couldn’t reach the online service. Check your internet connection.';
+    case 'browser-incompatible': return 'This browser doesn’t support online play.';
+    default: return 'Couldn’t connect. Please try again.';
+  }
+}
+
+async function hostRoom(attempt = 0) {
+  lobbyOpen('host');
+  lobbySetMsg('Creating room…');
+  try { await loadPeerJS(); } catch (e) { lobbySetMsg('Couldn’t load the online service. Check your connection and try again.', true); return; }
+  if (lobby.mode !== 'host') return;
+  netCleanup();
+  const code = makeCode();
+  const peer = new Peer(PEER_PREFIX + code, { debug: 0 });
+  NET.peer = peer; NET.code = code;
+  peer.on('open', () => {
+    if (NET.peer !== peer) return;
+    lobbyShowCode(code);
+    lobbySetMsg('Send this code or the invite link to your friend. Waiting for them to join…');
+  });
+  peer.on('connection', conn => {
+    if (NET.conn) {
+      conn.on('open', () => { try { conn.send({ t: 'full' }); } catch (e) { /* nada */ } setTimeout(() => conn.close(), 500); });
+      return;
+    }
+    setupConn(conn, 'host');
+  });
+  peer.on('error', err => {
+    if (NET.peer !== peer) return;
+    if (err.type === 'unavailable-id' && attempt < 3) { hostRoom(attempt + 1); return; }
+    if (NET.role) return;
+    lobbySetMsg(netErrorText(err), true);
+  });
+}
+
+async function joinRoom(raw) {
+  const code = String(raw || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (code.length !== 5) { lobbySetMsg('Enter the 5-character room code.', true); return; }
+  lobbySetMsg('Connecting…');
+  lobbyBusy(true);
+  try { await loadPeerJS(); } catch (e) { lobbyBusy(false); lobbySetMsg('Couldn’t load the online service. Check your connection and try again.', true); return; }
+  if (lobby.mode !== 'join') return;
+  netCleanup();
+  const peer = new Peer({ debug: 0 });
+  NET.peer = peer;
+  peer.on('open', () => {
+    if (NET.peer !== peer) return;
+    const conn = peer.connect(PEER_PREFIX + code, { reliable: true, serialization: 'json' });
+    setupConn(conn, 'guest');
+    NET.joinTimer = setTimeout(() => {
+      if (NET.role || NET.peer !== peer) return;
+      lobbyBusy(false);
+      lobbySetMsg('Couldn’t connect. Your networks may not allow a direct connection between browsers. Try again or use another network.', true);
+      netCleanup();
+    }, 15000);
+  });
+  peer.on('error', err => {
+    if (NET.peer !== peer || NET.role) return;
+    clearTimeout(NET.joinTimer);
+    lobbyBusy(false);
+    lobbySetMsg(netErrorText(err), true);
+  });
+}
+
+function setupConn(conn, role) {
+  conn.on('open', () => {
+    clearTimeout(NET.joinTimer);
+    NET.conn = conn; NET.role = role; NET.leaving = false; NET.notice = '';
+    lobbyClose(true);
+    resetInputs();
+    remoteInput.d = -1; remoteInput.f = false;
+    if (role === 'host') startGame(true);
+    else { G.coop = true; G.state = S.INTRO; G.stateTimer = 2; G.paused = false; G.players[1].inGame = true; }
+    if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+  });
+  conn.on('data', msg => onNetMessage(msg));
+  conn.on('close', () => onNetClosed());
+  conn.on('error', () => onNetClosed());
+}
+
+function onNetMessage(m) {
+  if (!m || typeof m !== 'object') return;
+  switch (m.t) {
+    case 's': if (NET.role === 'guest') applySnapshot(m); break;
+    case 'i': if (NET.role === 'host') { remoteInput.d = m.d | 0; remoteInput.f = !!m.f; } break;
+    case 'p': if (NET.role === 'host') { if (G.paused) resumeGame(); else pauseGame(); } break;
+    case 'c': if (NET.role === 'host') hostConfirm(); break;
+    case 'q': onNetClosed('Your friend left the game.'); break;
+    case 'ping': NET.send({ t: 'pong', ts: m.ts }); break;
+    case 'pong': NET.ping = performance.now() - m.ts; break;
+    case 'full': lobbyBusy(false); lobbySetMsg('This room already has two players.', true); netCleanup(); break;
+  }
+}
+
+function onNetClosed(reason) {
+  if (NET.leaving) return;
+  if (!NET.role) { // aún en la sala de espera
+    if (lobby.mode === 'join') { lobbyBusy(false); lobbySetMsg('Connection closed. Check the code and try again.', true); netCleanup(); }
+    return;
+  }
+  netCleanup();
+  toTitle();
+  setNotice(reason || 'Connection lost: your friend disconnected.');
+}
+function leaveGame() {
+  if (NET.role) {
+    NET.send({ t: 'q' });
+    NET.leaving = true;
+    const { conn, peer } = NET;
+    NET.conn = null; NET.peer = null; NET.role = null;
+    setTimeout(() => { try { conn && conn.close(); } catch (e) { /* nada */ } try { peer && peer.destroy(); } catch (e) { /* nada */ } NET.leaving = false; }, 250);
+  }
+  remoteInput.d = -1; remoteInput.f = false;
+  toTitle();
+}
+
+/* ---------- instantáneas del anfitrión */
+function encodeTerrain() {
+  let s = '';
+  const c = G.terrain.cells;
+  for (let i = 0; i < c.length; i += 2048) s += String.fromCharCode.apply(null, c.subarray(i, i + 2048));
+  return btoa(s);
+}
+function decodeTerrain(b64) {
+  const s = atob(b64), t = G.terrain;
+  t.clear();
+  for (let i = 0; i < s.length && i < t.cells.length; i++) t.cells[i] = s.charCodeAt(i);
+}
+function buildSnapshot() {
+  const s = {
+    t: 's', st: G.state, ps: G.paused ? 1 : 0, tm: r1(G.stateTimer), tt: r1(G.tallyTime), stg: G.stage, nm: G.stageName,
+    core: G.coreAlive ? 1 : 0, sta: r1(G.stasis), fo: r1(G.fortify), sh: r1(G.shake),
+    bn: G.bannerTime > 0 ? [G.bannerText, r1(G.bannerTime)] : 0, rv: reserve(), k: G.kills, hi: G.hiScore,
+    nr: G.newRecord ? 1 : 0, or: G.overReason,
+    pl: G.players.map(p => [p.inGame ? 1 : 0, p.alive ? 1 : 0, r1(p.x), r1(p.y), p.dir, r1(p.spawnTimer), r1(p.shield), r1(p.flash), r1(p.tread), p.rank, r1(p.stun), p.lives, p.score]),
+    en: G.enemies.filter(e => e.alive).map(e => [e.kind.i, r1(e.x), r1(e.y), e.dir, e.hp, r1(e.spawnTimer), r1(e.flash), r1(e.tread), e.carrier ? 1 : 0]),
+    bu: G.bullets.map(b => [r1(b.x), r1(b.y), b.dir, b.owner.isPlayer ? b.owner.pid + 1 : 0, b.power ? 1 : 0]),
+    pw: G.power ? [G.power.x, G.power.y, POWERS.indexOf(G.power.type), r1(G.power.life)] : 0,
+    ev: NET.events,
+  };
+  if (NET.lastEpochSent !== G.terrainEpoch) { s.full = encodeTerrain(); NET.lastEpochSent = G.terrainEpoch; }
+  else if (G.terrain.log.length) {
+    const seen = new Set(), tr = [];
+    for (const i of G.terrain.log) if (!seen.has(i)) { seen.add(i); tr.push(i, G.terrain.cells[i]); }
+    s.tr = tr;
+  }
+  G.terrain.log.length = 0;
+  NET.events = [];
+  return s;
+}
+function sendSnapshot() {
+  const ch = NET.conn && NET.conn.dataChannel;
+  if (ch && ch.bufferedAmount > 256 * 1024) return; // la red va lenta: esperar
+  NET.send(buildSnapshot());
+}
+function applySnapshot(s) {
+  G.state = s.st; G.paused = !!s.ps; G.stateTimer = s.tm; G.tallyTime = s.tt; G.stage = s.stg; G.stageName = s.nm;
+  G.coreAlive = !!s.core; G.stasis = s.sta; G.fortify = s.fo; G.shake = s.sh;
+  if (s.bn) { G.bannerText = s.bn[0]; G.bannerTime = s.bn[1]; } else G.bannerTime = 0;
+  NET.reserve = s.rv; G.kills = s.k; G.hiScore = s.hi; G.newRecord = !!s.nr; G.overReason = s.or; G.coop = true;
+  s.pl.forEach((a, i) => {
+    const p = G.players[i];
+    p.inGame = !!a[0]; p.alive = !!a[1]; p.x = a[2]; p.y = a[3]; p.dir = a[4]; p.spawnTimer = a[5]; p.shield = a[6];
+    p.flash = a[7]; p.tread = a[8]; p.rank = a[9]; p.stun = a[10]; p.lives = a[11]; p.score = a[12];
+  });
+  G.enemies = s.en.map(a => ({ isPlayer: false, kind: KINDS[a[0]], x: a[1], y: a[2], dir: a[3], hp: a[4], spawnTimer: a[5], flash: a[6], tread: a[7], carrier: !!a[8], alive: true }));
+  G.bullets = s.bu.map(a => ({ x: a[0], y: a[1], dir: a[2], owner: a[3] ? G.players[a[3] - 1] : ENEMY_OWNER, power: !!a[4], alive: true }));
+  G.power = s.pw ? { x: s.pw[0], y: s.pw[1], type: POWERS[s.pw[2]], life: s.pw[3] } : null;
+  if (s.full) { decodeTerrain(s.full); G.terrainEpoch++; computeWater(); }
+  else if (s.tr) for (let i = 0; i < s.tr.length; i += 2) G.terrain.set(s.tr[i] % N, (s.tr[i] / N) | 0, s.tr[i + 1]);
+  G.terrain.log.length = 0;
+  if (s.ev && s.ev.length) applyEvents(s.ev);
+}
+
+/* ---------- sala de espera (HTML sobre el lienzo) */
+const lobby = { mode: null, el: null };
+function lobbyBuild() {
+  const el = document.createElement('div');
+  el.id = 'lobby';
+  el.hidden = true;
+  el.innerHTML = `
+    <div class="lb-box" role="dialog" aria-modal="true" aria-labelledby="lb-title">
+      <h2 id="lb-title">Online co-op</h2>
+      <p id="lb-msg" aria-live="polite"></p>
+      <div id="lb-code" hidden></div>
+      <form id="lb-form" hidden autocomplete="off">
+        <label for="lb-input">Room code</label>
+        <input id="lb-input" maxlength="5" inputmode="text" autocapitalize="characters" spellcheck="false" placeholder="ABCDE">
+        <button type="submit" id="lb-join">Join</button>
+      </form>
+      <div class="lb-row">
+        <button type="button" id="lb-copy" hidden>Copy invite link</button>
+        <button type="button" id="lb-cancel" class="lb-secondary">Cancel</button>
+      </div>
+    </div>`;
+  document.body.appendChild(el);
+  lobby.el = el;
+  el.querySelector('#lb-cancel').addEventListener('click', () => lobbyClose(false));
+  el.querySelector('#lb-form').addEventListener('submit', e => { e.preventDefault(); joinRoom(el.querySelector('#lb-input').value); });
+  el.querySelector('#lb-input').addEventListener('input', e => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); });
+  el.querySelector('#lb-copy').addEventListener('click', async () => {
+    const link = inviteLink(NET.code);
+    try { await navigator.clipboard.writeText(link); lobbySetMsg('Invite link copied! Send it to your friend. Waiting for them to join…'); }
+    catch (e) { lobbySetMsg(`Copy this link and send it to your friend: ${link}`); }
+  });
+  el.addEventListener('pointerdown', e => e.stopPropagation());
+}
+function lobbyOpen(mode, code) {
+  if (!lobby.el) lobbyBuild();
+  lobby.mode = mode;
+  const el = lobby.el;
+  el.hidden = false;
+  el.querySelector('#lb-title').textContent = mode === 'host' ? 'Create a room' : 'Join a room';
+  el.querySelector('#lb-code').hidden = true;
+  el.querySelector('#lb-copy').hidden = true;
+  el.querySelector('#lb-form').hidden = mode !== 'join';
+  lobbyBusy(false);
+  lobbySetMsg(mode === 'join' ? 'Enter the code your friend sent you.' : '');
+  resetInputs();
+  if (mode === 'join') {
+    const inp = el.querySelector('#lb-input');
+    inp.value = code || '';
+    setTimeout(() => inp.focus(), 0);
+    if (code) joinRoom(code);
+  }
+}
+function lobbyShowCode(code) {
+  const el = lobby.el;
+  const box = el.querySelector('#lb-code');
+  box.textContent = code; box.hidden = false;
+  el.querySelector('#lb-copy').hidden = false;
+}
+function lobbySetMsg(text, isError) {
+  if (!lobby.el) return;
+  const m = lobby.el.querySelector('#lb-msg');
+  m.textContent = text; m.classList.toggle('lb-error', !!isError);
+}
+function lobbyBusy(busy) {
+  if (!lobby.el) return;
+  lobby.el.querySelector('#lb-join').disabled = busy;
+  lobby.el.querySelector('#lb-input').disabled = busy;
+}
+function lobbyClose(connected) {
+  if (!lobby.el) return;
+  lobby.el.hidden = true;
+  lobby.mode = null;
+  if (!connected) netCleanup();
+  canvas.focus();
+}
+const lobbyIsOpen = () => !!(lobby.el && !lobby.el.hidden);
 
 /* ============================================================ entrada */
 let joyId = -1, fireId = -1;
 let held = [];
 function resetInputs() { held = []; joyId = -1; fireId = -1; input.releaseAll(); }
 
+const isMenuState = () => G.state === S.TITLE || G.state === S.TALLY || G.state === S.OVER;
+function titleChoose(id) {
+  sfx.unlock();
+  if (id === 'solo') startGame(false);
+  else if (id === 'host') hostRoom();
+  else if (id === 'join') lobbyOpen('join');
+}
+function confirm() {
+  if (lobbyIsOpen()) return;
+  if (G.state === S.TITLE) { titleChoose(TITLE_OPTS[titleSel].id); return; }
+  if (NET.role === 'guest') { NET.send({ t: 'c' }); return; }
+  hostConfirm();
+}
+function togglePause() {
+  if (NET.role === 'guest') { NET.send({ t: 'p' }); return; }
+  if (G.paused) resumeGame(); else pauseGame();
+}
+function quitGame() { if (NET.role) leaveGame(); else toTitle(); }
+
+function onTap(x, y) {
+  if (G.paused) {
+    if (inRect(L.resumeRect, x, y)) togglePause();
+    else if (inRect(L.quitRect, x, y)) quitGame();
+    return;
+  }
+  if (G.state === S.TITLE) {
+    const r = titleRects.find(b => inRect(b, x, y));
+    if (r) { titleSel = TITLE_OPTS.findIndex(o => o.id === r.id); titleChoose(r.id); }
+    return;
+  }
+  confirm();
+}
 function pointerDown(id, x, y) {
-  if (G.paused) { onTap(x, y); return; }
-  if (G.state === S.TITLE || G.state === S.TALLY || G.state === S.OVER) { onTap(x, y); return; }
+  if (G.paused || isMenuState()) { onTap(x, y); return; }
   if (inRect(L.pauseRect, x, y)) { resetInputs(); togglePause(); return; }
   if (x < L.w / 2) { if (joyId < 0) { joyId = id; input.joyStart(x, y); } }
   else if (fireId < 0) { fireId = id; input.fireTouch = true; }
@@ -1356,6 +1857,7 @@ function pointerUp(id) {
   if (id === fireId) { fireId = -1; input.fireTouch = false; }
 }
 canvas.addEventListener('pointerdown', e => {
+  if (lobbyIsOpen()) return;
   e.preventDefault();
   canvas.focus();
   sfx.unlock();
@@ -1374,20 +1876,28 @@ const KEYDIR = { ArrowUp: UP, KeyW: UP, ArrowRight: RIGHT, KeyD: RIGHT, ArrowDow
 const FIRE_KEYS = new Set(['Space', 'KeyJ', 'KeyK', 'Enter', 'NumpadEnter']);
 const PAUSE_KEYS = new Set(['KeyP', 'Escape']);
 window.addEventListener('keydown', e => {
+  if (lobbyIsOpen()) { if (e.code === 'Escape') lobbyClose(false); return; }
   const d = KEYDIR[e.code];
   if (d !== undefined || FIRE_KEYS.has(e.code) || PAUSE_KEYS.has(e.code) || e.code === 'KeyM' || e.code === 'KeyQ') {
     e.preventDefault();
     sfx.unlock();
     touchMode = false;
   }
+  if (G.state === S.TITLE && !G.paused) {
+    if (d === UP && !e.repeat) titleSel = (titleSel + TITLE_OPTS.length - 1) % TITLE_OPTS.length;
+    else if (d === DOWN && !e.repeat) titleSel = (titleSel + 1) % TITLE_OPTS.length;
+    else if (FIRE_KEYS.has(e.code) && !e.repeat) confirm();
+    else if (e.code === 'KeyM' && !e.repeat) sfx.toggleMute();
+    return;
+  }
   if (d !== undefined) { if (!held.includes(d)) held.push(d); input.keyDir = held[held.length - 1]; return; }
   if (FIRE_KEYS.has(e.code)) {
     input.fireKey = true;
-    if (!e.repeat && (G.paused || G.state === S.TITLE || G.state === S.TALLY || G.state === S.OVER)) confirm();
+    if (!e.repeat && (G.paused || isMenuState())) confirm();
     return;
   }
   if (PAUSE_KEYS.has(e.code) && !e.repeat) { resetInputs(); togglePause(); return; }
-  if (e.code === 'KeyQ' && G.paused) { toTitle(); return; }
+  if (e.code === 'KeyQ' && G.paused) { quitGame(); return; }
   if (e.code === 'KeyM' && !e.repeat) sfx.toggleMute();
 });
 window.addEventListener('keyup', e => {
@@ -1395,10 +1905,15 @@ window.addEventListener('keyup', e => {
   if (d !== undefined) { held = held.filter(v => v !== d); input.keyDir = held.length ? held[held.length - 1] : -1; return; }
   if (FIRE_KEYS.has(e.code)) input.fireKey = false;
 });
-window.addEventListener('blur', () => autoPause());
-document.addEventListener('visibilitychange', () => { if (document.hidden) autoPause(); });
+window.addEventListener('blur', () => { if (!NET.role) autoPause(); else resetInputs(); });
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) return;
+  if (NET.role === 'host') { pauseGame(); sendSnapshot(); }
+  else if (NET.role === 'guest') { resetInputs(); NET.send({ t: 'i', d: -1, f: false }); NET.sentDir = -1; NET.sentFire = false; }
+  else autoPause();
+});
 
-let padA = false, padStart = false;
+let padA = false, padStart = false, padY = 0;
 function pollPad() {
   const pads = navigator.getGamepads ? navigator.getGamepads() : [];
   let gp = null;
@@ -1407,31 +1922,63 @@ function pollPad() {
   const btn = i => !!(gp.buttons[i] && gp.buttons[i].pressed);
   let x = gp.axes[0] || 0, y = gp.axes[1] || 0;
   if (btn(12)) y = -1; if (btn(13)) y = 1; if (btn(14)) x = -1; if (btn(15)) x = 1;
-  input.padDir = Math.max(Math.abs(x), Math.abs(y)) < 0.45 ? -1 : Math.abs(x) > Math.abs(y) ? (x > 0 ? RIGHT : LEFT) : (y > 0 ? DOWN : UP);
+  const dir = Math.max(Math.abs(x), Math.abs(y)) < 0.45 ? -1 : Math.abs(x) > Math.abs(y) ? (x > 0 ? RIGHT : LEFT) : (y > 0 ? DOWN : UP);
+  if (G.state === S.TITLE && !lobbyIsOpen()) {
+    const vy = dir === UP ? -1 : dir === DOWN ? 1 : 0;
+    if (vy && vy !== padY) titleSel = (titleSel + vy + TITLE_OPTS.length) % TITLE_OPTS.length;
+    padY = vy;
+    input.padDir = -1;
+  } else input.padDir = dir;
   const a = btn(0) || btn(2) || btn(5) || btn(7);
-  input.firePad = a;
-  if (a && !padA) { sfx.unlock(); touchMode = false; if (G.paused || G.state === S.TITLE || G.state === S.TALLY || G.state === S.OVER) confirm(); }
+  input.firePad = a && G.state !== S.TITLE;
+  if (a && !padA) { sfx.unlock(); touchMode = false; if (G.paused || isMenuState()) confirm(); }
   padA = a;
   const st = btn(9);
-  if (st && !padStart) togglePause();
+  if (st && !padStart && G.state !== S.TITLE) togglePause();
   padStart = st;
 }
 
 /* ============================================================ bucle */
 const STEP = 1 / 60;
 let last = performance.now(), acc = 0;
+function netTick(dt) {
+  if (!NET.role) return;
+  NET.pingTimer -= dt;
+  if (NET.pingTimer <= 0) { NET.pingTimer = 2; NET.send({ t: 'ping', ts: performance.now() }); }
+  if (NET.role === 'host') {
+    NET.snapAcc += dt;
+    if (NET.snapAcc >= 1 / 60 - 0.002) { NET.snapAcc = 0; sendSnapshot(); }
+  } else {
+    const d = input.dir(), f = input.fire();
+    if (d !== NET.sentDir || f !== NET.sentFire) { NET.send({ t: 'i', d, f }); NET.sentDir = d; NET.sentFire = f; }
+  }
+}
 function frame(now) {
-  acc += Math.min(0.1, (now - last) / 1000);
+  const dt = Math.min(0.1, (now - last) / 1000);
+  acc += dt;
   last = now;
   pollPad();
-  let n = 0;
-  while (acc >= STEP && n < 5) { update(STEP); acc -= STEP; n++; }
-  if (n === 5) acc = 0;
+  if (NET.noticeTime > 0) NET.noticeTime -= dt;
+  if (NET.role === 'guest') {
+    G.time += dt;
+    updateFx(dt);
+    acc = 0;
+  } else {
+    let n = 0;
+    while (acc >= STEP && n < 5) { update(STEP); acc -= STEP; n++; }
+    if (n === 5) acc = 0;
+  }
+  netTick(dt);
+  if (NET.role !== 'host') G.terrain.log.length = 0;
   render();
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
 canvas.focus();
+{
+  const m = /^#join-([A-Za-z0-9]{5})$/.exec(location.hash);
+  if (m) lobbyOpen('join', m[1].toUpperCase());
+}
 </script>
 </body>
 </html>
