@@ -745,6 +745,7 @@ function destroyEnemy(e, by) {
 function killPlayer(p) {
   if (!p.alive) return;
   p.alive = false; p.rank = 0; p.stun = 0;
+  if (p.pid === localPid()) buzz(180);
   explosion(p.x + 8, p.y + 8, true);
   sfx.play(SFX.BIG);
   G.shake = 0.45;
@@ -755,6 +756,7 @@ function killPlayer(p) {
 function destroyCore() {
   if (!G.coreAlive) return;
   G.coreAlive = false;
+  buzz([90, 50, 220]);
   explosion(CORE_X + 8, CORE_Y + 8, true); explosion(CORE_X + 4, CORE_Y + 6, true); explosion(CORE_X + 12, CORE_Y + 10, true);
   sfx.play(SFX.BIG);
   G.shake = 0.7;
@@ -906,7 +908,7 @@ function computeLayout(w, h, density) {
     L.joyX = rcx(L.left); L.joyY = h - L.joyR - L.font * 1.2;
     L.fireR = L.joyR * 0.9;
     L.fireX = rcx(L.right); L.fireY = h - L.fireR - L.font * 1.2;
-    const ps = L.font * 2.2, m = L.font * 0.7;
+    const ps = Math.max(L.font * 2.2, 42 * density), m = L.font * 0.7;
     setR(L.pauseRect, m, m, m + ps, m + ps);
   } else {
     L.font = Math.min(Math.max(w * 0.04, 10 * density), 26 * density);
@@ -918,11 +920,11 @@ function computeLayout(w, h, density) {
     L.joyR = Math.min(w * 0.2, rem * 0.38);
     L.joyX = w * 0.25; L.joyY = below + rem / 2;
     L.fireR = L.joyR * 0.9; L.fireX = w * 0.75; L.fireY = L.joyY;
-    const ps = L.font * 2;
+    const ps = Math.max(L.font * 2, 42 * density);
     setR(L.pauseRect, L.font * 0.5, L.font * 0.6, L.font * 0.5 + ps, L.font * 0.6 + ps);
   }
   L.scale = L.mapSize / 256;
-  const bw = L.font * 10, bh = L.font * 2.6, cx = w / 2, cy = h / 2;
+  const bh = Math.max(L.font * 2.6, 48 * density), bw = Math.min(w * 0.86, Math.max(L.font * 10, bh * 5)), cx = w / 2, cy = h / 2;
   setR(L.resumeRect, cx - bw / 2, cy - bh * 0.2, cx + bw / 2, cy + bh * 0.8);
   setR(L.quitRect, cx - bw / 2, cy + bh * 1.1, cx + bw / 2, cy + bh * 2.1);
 }
@@ -1273,6 +1275,15 @@ function drawPlayerBlock(p, cx, y, f) {
   label(`× ${Math.max(p.lives, 0)}`, cx - f * 0.2, y + f * 2.5, f * 0.9, p.lives > 0 || p.alive ? TEXT : 0xFF6B5A, 'left');
   drawRank(cx, y + f * 3.4, f * 0.85, p.rank);
 }
+function drawPlayerCompact(p, cx, y, f) {
+  const col = PLAYER_COLORS[p.pid];
+  const you = NET.role && p.pid === localPid() ? ' · YOU' : '';
+  label(`P${p.pid + 1}${you}`, cx, y, f * 0.58, col);
+  label(String(p.score), cx, y + f * 0.95, f * 0.9, TEXT);
+  drawMiniTank(cx - f * 1.25, y + f * 1.72, f * 0.62, col);
+  label(`×${Math.max(p.lives, 0)}`, cx - f * 0.85, y + f * 1.95, f * 0.62, p.lives > 0 || p.alive ? TEXT : 0xFF6B5A, 'left');
+  drawRank(cx + f * 0.95, y + f * 1.8, f * 0.5, p.rank);
+}
 function drawHud() {
   const f = L.font, p0 = G.players[0], p1 = G.players[1];
   drawPauseButton();
@@ -1294,8 +1305,16 @@ function drawHud() {
   const lx = rcx(L.left);
   let y = L.pauseRect.b + f * 1.8;
   if (G.coop) {
-    drawPlayerBlock(p0, lx, y, f);
-    drawPlayerBlock(p1, lx, y + f * 4.9, f);
+    // Con controles táctiles el joystick ocupa la parte baja del panel: versión compacta.
+    const compact = touchMode || y + f * 9.8 > L.h - f * 8;
+    if (compact) {
+      y = L.pauseRect.b + f * 1.2;
+      drawPlayerCompact(p0, lx, y, f);
+      drawPlayerCompact(p1, lx, y + f * 2.9, f);
+    } else {
+      drawPlayerBlock(p0, lx, y, f);
+      drawPlayerBlock(p1, lx, y + f * 4.9, f);
+    }
   } else {
     label('SCORE', lx, y, f * 0.7, MUTED);
     label(String(p0.score), lx, y + f * 1.3, f * 1.25, TEXT);
@@ -1446,28 +1465,56 @@ const TITLE_OPTS = [
 ];
 let titleSel = 0;
 const titleRects = [];
+/* Unidad de tamaño para pantallas de menú: en vertical usa el ancho, en horizontal la altura. */
+function screenUnit() { return L.h > L.w ? Math.min(L.h * 0.55, L.w * 0.98) : Math.min(L.h, L.w * 0.6); }
+function fitSize(text, size, maxW) { return Math.min(size, maxW / Math.max(1, text.length * 0.6)); }
 function drawTitle() {
-  const w = L.w, h = L.h, u = Math.min(h, w * 0.6), cx = w / 2;
+  const w = L.w, h = L.h, cx = w / 2, d = L.density, u = screenUnit();
   drawBackdrop();
-  const bandH = u * 0.06;
+  const bandH = Math.min(u * 0.06, h * 0.045);
   drawBrickBand(h - bandH, w, bandH);
-  label('STEEL', cx + u * 0.008, h * 0.2 + u * 0.008, u * 0.15, 0x0B3B3B, 'center', 1, 0.06);
-  label('STEEL', cx, h * 0.2, u * 0.15, TEXT, 'center', 1, 0.06);
-  label('BASTION', cx, h * 0.29, u * 0.062, ACCENT, 'center', 1, 0.45);
-  const k = u * 0.095 / 16, ty = h * 0.4;
-  ctx.save(); ctx.translate(cx - u * 0.055, ty); ctx.scale(k, k); drawTank(0, 0, UP, PLAYER_COLORS[0], -1, G.time * 25, 0); ctx.restore();
-  ctx.save(); ctx.translate(cx + u * 0.055, ty); ctx.scale(k, k); drawTank(0, 0, UP, PLAYER_COLORS[1], -2, G.time * 25, 0); ctx.restore();
-  KINDS.forEach((kind, i) => {
-    const side = i % 2 === 0 ? -1 : 1, ex = cx + side * u * (0.3 + Math.floor(i / 2) * 0.17);
-    const bob = Math.sin(G.time * 2 + i) * u * 0.006;
-    ctx.save(); ctx.translate(ex, ty + bob); ctx.scale(k * 0.8, k * 0.8);
-    drawTank(0, 0, side < 0 ? RIGHT : LEFT, kind.color, i, G.time * 12, 0);
-    ctx.restore();
-  });
-  label(`BEST  ${loadHi(false)}   ·   CO-OP BEST  ${loadHi(true)}`, cx, h * 0.5, u * 0.032, ACCENT);
+  const hint = touchMode
+    ? 'Tap an option to play  ·  Joystick on the left, fire on the right'
+    : 'Up / Down to choose  ·  Enter to start  ·  Arrows / WASD + Space in game  ·  M sound';
+  const hintSize = fitSize(hint, Math.max(u * 0.028, 11 * d), w * 0.94);
+  const bottom = h - bandH - hintSize * 2.4;
 
-  const bw = Math.min(w * 0.8, u * 0.75), bh = u * 0.07, gap = u * 0.022;
-  let y = h * 0.555;
+  let logo = u * 0.15, sub = u * 0.062;
+  const tank = u * 0.095, best = Math.max(u * 0.032, 12 * d);
+  const bh = Math.max(u * 0.07, (touchMode ? 48 : 36) * d), gap = bh * 0.28;
+  const bw = Math.min(w * 0.88, Math.max(u * 0.75, bh * 8));
+  const menuH = TITLE_OPTS.length * bh + (TITLE_OPTS.length - 1) * gap;
+  const noticeH = NET.notice && NET.noticeTime > 0 ? best * 2.2 : 0;
+  let showTanks = true;
+  const headH = () => logo + sub * 1.6 + (showTanks ? tank * 1.9 : 0) + best * 2.3;
+  const avail = bottom - h * 0.06 - menuH - noticeH;
+  if (headH() > avail) showTanks = false;
+  if (headH() > avail) { const k = Math.max(0.45, avail / headH()); logo *= k; sub *= k; }
+  let y = Math.max(h * 0.03, (bottom - (headH() + menuH + noticeH)) / 2);
+
+  const lb = y + logo * 0.8;
+  label('STEEL', cx + logo * 0.05, lb + logo * 0.05, logo, 0x0B3B3B, 'center', 1, 0.06);
+  label('STEEL', cx, lb, logo, TEXT, 'center', 1, 0.06);
+  y += logo;
+  label('BASTION', cx, y + sub * 1.15, sub, ACCENT, 'center', 1, 0.45);
+  y += sub * 1.6;
+  if (showTanks) {
+    const ty = y + tank * 0.95, k = tank / 16, spread = Math.min(u, w * 0.92);
+    ctx.save(); ctx.translate(cx - tank * 0.58, ty); ctx.scale(k, k); drawTank(0, 0, UP, PLAYER_COLORS[0], -1, G.time * 25, 0); ctx.restore();
+    ctx.save(); ctx.translate(cx + tank * 0.58, ty); ctx.scale(k, k); drawTank(0, 0, UP, PLAYER_COLORS[1], -2, G.time * 25, 0); ctx.restore();
+    KINDS.forEach((kind, i) => {
+      const side = i % 2 === 0 ? -1 : 1, ex = cx + side * spread * (0.27 + Math.floor(i / 2) * 0.15);
+      const bob = Math.sin(G.time * 2 + i) * u * 0.006;
+      ctx.save(); ctx.translate(ex, ty + bob); ctx.scale(k * 0.8, k * 0.8);
+      drawTank(0, 0, side < 0 ? RIGHT : LEFT, kind.color, i, G.time * 12, 0);
+      ctx.restore();
+    });
+    y += tank * 1.9;
+  }
+  const bestText = `BEST  ${loadHi(false)}   ·   CO-OP BEST  ${loadHi(true)}`;
+  label(bestText, cx, y + best * 1.1, fitSize(bestText, best, w * 0.9), ACCENT);
+  y += best * 2.3;
+
   titleRects.length = 0;
   TITLE_OPTS.forEach((o, i) => {
     const r = { id: o.id, l: cx - bw / 2, t: y, r: cx + bw / 2, b: y + bh };
@@ -1476,17 +1523,15 @@ function drawTitle() {
     rrPath(ctx, r.l, r.t, bw, bh, bh * 0.3);
     fillC(i === 0 ? PLAYER : PLAYER_COLORS[1], sel ? 0.3 : 0.1); ctx.fill();
     ctx.strokeStyle = css(i === 0 ? PLAYER : PLAYER_COLORS[1], sel ? 1 : 0.5); ctx.lineWidth = Math.max(1.5, bh * 0.05); ctx.stroke();
-    label(o.label, cx, y + bh * 0.66, bh * 0.4, TEXT, 'center', sel ? 1 : 0.8, 0.06);
+    const ts = fitSize(o.label, bh * 0.38, bw * 0.86);
+    label(o.label, cx, y + bh / 2 + ts * 0.36, ts, TEXT, 'center', sel ? 1 : 0.8, 0.04);
     y += bh + gap;
   });
-  if (NET.notice && NET.noticeTime > 0) label(NET.notice, cx, y + u * 0.03, u * 0.032, 0xFF9A80);
-  const hint = touchMode
-    ? 'Tap an option to play  ·  Joystick on the left, fire on the right'
-    : 'Up / Down to choose  ·  Enter to start  ·  Arrows / WASD + Space in game  ·  M sound';
-  label(hint, cx, h - bandH - u * 0.03, u * 0.028, MUTED);
+  if (noticeH) label(NET.notice, cx, y + best * 0.9, fitSize(NET.notice, best, w * 0.92), 0xFF9A80);
+  label(hint, cx, h - bandH - hintSize * 0.9, hintSize, MUTED);
 }
 function drawTally() {
-  const w = L.w, h = L.h, u = Math.min(h, w * 0.6), cx = w / 2;
+  const w = L.w, h = L.h, u = screenUnit(), cx = w / 2;
   drawBackdrop();
   label(`SECTOR ${G.stage} SECURED`, cx, h * 0.15, u * 0.075, ACCENT, 'center', 1, 0.12);
   const rowH = u * 0.09, startY = h * 0.28;
@@ -1749,6 +1794,7 @@ function lobbyBuild() {
         <button type="submit" id="lb-join">Join</button>
       </form>
       <div class="lb-row">
+        <button type="button" id="lb-share" hidden>Share invite</button>
         <button type="button" id="lb-copy" hidden>Copy invite link</button>
         <button type="button" id="lb-cancel" class="lb-secondary">Cancel</button>
       </div>
@@ -1756,8 +1802,12 @@ function lobbyBuild() {
   document.body.appendChild(el);
   lobby.el = el;
   el.querySelector('#lb-cancel').addEventListener('click', () => lobbyClose(false));
-  el.querySelector('#lb-form').addEventListener('submit', e => { e.preventDefault(); joinRoom(el.querySelector('#lb-input').value); });
+  el.querySelector('#lb-form').addEventListener('submit', e => { e.preventDefault(); goFullscreen(); joinRoom(el.querySelector('#lb-input').value); });
   el.querySelector('#lb-input').addEventListener('input', e => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); });
+  el.querySelector('#lb-share').addEventListener('click', async () => {
+    try { await navigator.share({ title: 'Steel Bastion', text: `Join my Steel Bastion room (code ${NET.code}):`, url: inviteLink(NET.code) }); }
+    catch (e) { /* compartir cancelado */ }
+  });
   el.querySelector('#lb-copy').addEventListener('click', async () => {
     const link = inviteLink(NET.code);
     try { await navigator.clipboard.writeText(link); lobbySetMsg('Invite link copied! Send it to your friend. Waiting for them to join…'); }
@@ -1773,6 +1823,7 @@ function lobbyOpen(mode, code) {
   el.querySelector('#lb-title').textContent = mode === 'host' ? 'Create a room' : 'Join a room';
   el.querySelector('#lb-code').hidden = true;
   el.querySelector('#lb-copy').hidden = true;
+  el.querySelector('#lb-share').hidden = true;
   el.querySelector('#lb-form').hidden = mode !== 'join';
   lobbyBusy(false);
   lobbySetMsg(mode === 'join' ? 'Enter the code your friend sent you.' : '');
@@ -1789,6 +1840,7 @@ function lobbyShowCode(code) {
   const box = el.querySelector('#lb-code');
   box.textContent = code; box.hidden = false;
   el.querySelector('#lb-copy').hidden = false;
+  el.querySelector('#lb-share').hidden = !navigator.share;
 }
 function lobbySetMsg(text, isError) {
   if (!lobby.el) return;
@@ -1815,8 +1867,15 @@ let held = [];
 function resetInputs() { held = []; joyId = -1; fireId = -1; input.releaseAll(); }
 
 const isMenuState = () => G.state === S.TITLE || G.state === S.TALLY || G.state === S.OVER;
+function goFullscreen() {
+  const el = document.documentElement;
+  if (!touchMode || document.fullscreenElement || !el.requestFullscreen) return;
+  try { el.requestFullscreen({ navigationUI: 'hide' }).catch(() => {}); } catch (e) { /* no disponible (p. ej. iPhone) */ }
+}
+function buzz(pattern) { try { if (touchMode && navigator.vibrate) navigator.vibrate(pattern); } catch (e) { /* sin vibración */ } }
 function titleChoose(id) {
   sfx.unlock();
+  goFullscreen();
   if (id === 'solo') startGame(false);
   else if (id === 'host') hostRoom();
   else if (id === 'join') lobbyOpen('join');
