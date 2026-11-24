@@ -99,7 +99,7 @@ const SECTORS = [
   ['Riverbank', [
     '................', '..SS..B..B..SS..', '..BB..B..B..BB..', '......BBBB......',
     '.FFF........FFF.', '.FFF.BB..BB.FFF.', 'WWWW.BB..BB.WWWW', '................',
-    '..B..SS..SS..B..', '..B..........B..', '..BBBB.FF.BBBB..', '.......FF.......',
+    '..B..SS..SS..B..', '..B..........B..', '..BBBB.FF.BBBB..', '.......BB.......',
     '.SS..B....B..SS.', '.....B....B.....', '..B..........B..', '..B..........B..']],
   ['Labyrinth', [
     '................', '.BBBBB....BBBBB.', '.B...B....B...B.', '.B.F.B.SS.B.F.B.',
@@ -188,10 +188,10 @@ function buildSector(stage, terrain) {
 
 /* ------------------------------------------------------------ datos */
 const KINDS = [
-  { i: 0, label: 'Rover',    speed: 30, hp: 1, bullet: 130, fmin: 0.9, fmax: 2.2, points: 100, color: 0x9DB86A },
-  { i: 1, label: 'Dart',     speed: 58, hp: 1, bullet: 140, fmin: 0.8, fmax: 2.0, points: 200, color: 0xF0B03A },
-  { i: 2, label: 'Lancer',   speed: 34, hp: 1, bullet: 230, fmin: 0.5, fmax: 1.4, points: 300, color: 0xC46BE8 },
-  { i: 3, label: 'Bulwark',  speed: 26, hp: 4, bullet: 150, fmin: 0.8, fmax: 1.9, points: 400, color: 0xE05252 },
+  { i: 0, label: 'Rover',    speed: 30, hp: 1, bullet: 110, fmin: 1.4, fmax: 3.0, points: 100, color: 0x9DB86A },
+  { i: 1, label: 'Dart',     speed: 54, hp: 1, bullet: 120, fmin: 1.3, fmax: 2.8, points: 200, color: 0xF0B03A },
+  { i: 2, label: 'Lancer',   speed: 34, hp: 1, bullet: 170, fmin: 1.0, fmax: 2.2, points: 300, color: 0xC46BE8 },
+  { i: 3, label: 'Bulwark',  speed: 26, hp: 3, bullet: 130, fmin: 1.2, fmax: 2.6, points: 400, color: 0xE05252 },
 ];
 const POWERS = [
   { id: 'SHIELD',    label: 'SHIELD',          color: 0x5FE3FF },
@@ -432,7 +432,7 @@ function loadStage() {
 
 function makeQueue(s) {
   const r = mulberry32(s * 7919 + 13);
-  const heavy = Math.min(1 + Math.floor(s / 2), 7), lancer = Math.min(2 + Math.floor(s / 3), 6), dart = Math.min(3 + Math.floor(s / 3), 6);
+  const heavy = Math.min(Math.floor(s / 2), 6), lancer = Math.min(1 + Math.floor(s / 3), 6), dart = Math.min(2 + Math.floor(s / 3), 6);
   const rover = PER_STAGE - heavy - lancer - dart;
   const list = [];
   for (let i = 0; i < rover; i++) list.push(KINDS[0]);
@@ -442,10 +442,10 @@ function makeQueue(s) {
   for (let i = list.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [list[i], list[j]] = [list[j], list[i]]; }
   return list;
 }
-const maxActive = () => (G.stage <= 3 ? 4 : G.stage <= 7 ? 5 : 6) + (G.coop ? 1 : 0);
-const spawnInterval = () => Math.max(1.4, 3.2 - G.stage * 0.15) * (G.coop ? 0.85 : 1);
-const fireFactor = () => Math.max(0.55, 1 - (G.stage - 1) * 0.04);
-const coreBias = () => Math.min(0.6, 0.25 + G.stage * 0.03);
+const maxActive = () => (G.stage <= 2 ? 3 : G.stage <= 5 ? 4 : G.stage <= 9 ? 5 : 6) + (G.coop ? 1 : 0);
+const spawnInterval = () => Math.max(1.8, 3.6 - G.stage * 0.12) * (G.coop ? 0.85 : 1);
+const fireFactor = () => Math.max(0.7, 1 - (G.stage - 1) * 0.025);
+const coreBias = () => Math.min(0.5, 0.15 + G.stage * 0.025);
 const reserve = () => NET.role === 'guest' ? NET.reserve : G.queue.length - G.spawned;
 
 function computeWater() {
@@ -520,7 +520,7 @@ function updateSpawner(dt) {
   G.spawnIdx++;
   if (anyTankOverlap(sx, 0, 16, 16)) { G.spawnTimer = 0.25; return; }
   const k = G.queue[G.spawned], e = makeTank(false);
-  e.kind = k; e.hp = k.hp; e.speed = k.speed * (1 + Math.min(G.stage - 1, 10) * 0.02);
+  e.kind = k; e.hp = k.hp; e.speed = k.speed * (1 + Math.min(G.stage - 1, 10) * 0.015);
   e.x = sx; e.y = 0; e.dir = DOWN; e.alive = true; e.spawnTimer = 1;
   e.aiTurn = rand(0.6, 2); e.aiFire = rand(0.6, 1.6); e.carrier = CARRIERS.includes(G.spawned);
   G.enemies.push(e);
@@ -558,7 +558,7 @@ function updateEnemies(dt) {
       if (e.aiTurn <= 0) chooseDir(e, false);
     }
     e.aiFire -= dt;
-    if (e.aiFire > 0.15 && lineOfFire(e)) e.aiFire = 0.15;
+    if (e.aiFire > 0.5 && lineOfFire(e)) e.aiFire = 0.5;
     if (e.aiFire <= 0) e.aiFire = fire(e) ? rand(e.kind.fmin, e.kind.fmax) * fireFactor() : 0.25;
   }
 }
@@ -635,7 +635,7 @@ function fire(t) {
   let n = 0;
   for (const b of G.bullets) if (b.alive && b.owner === t) n++;
   if (n >= maxB) return false;
-  const spd = t.isPlayer ? (t.rank >= 1 ? 240 : 160) : t.kind.bullet;
+  const spd = t.isPlayer ? (t.rank >= 1 ? 280 : 200) : t.kind.bullet;
   const bx = t.x + 8 + DX[t.dir] * 7, by = t.y + 8 + DY[t.dir] * 7;
   G.bullets.push({ x: bx, y: by, dir: t.dir, speed: spd, owner: t, power: t.isPlayer && t.rank >= 3, alive: true });
   muzzle(bx, by);
