@@ -243,62 +243,51 @@ const isActive = t => t.alive && t.spawnTimer <= 0;
 
 /* ------------------------------------------------------------ sonido (sintetizado) */
 const SFX = { SHOOT: 0, BRICK: 1, STEEL: 2, EXPLODE: 3, BIG: 4, POWER_APPEAR: 5, PICKUP: 6, ARMOR: 7, STAGE: 8, GAMEOVER: 9, BLIP: 10 };
-const RATE = 22050;
+const RATE = 22050, SFX_VOL = 0.55;
+/* Sonidos suaves ("cozy"): ondas senoidales, ruido muy filtrado, ataques redondeados y tonos graves. */
 function synth(id) {
   const buf = s => new Float32Array(Math.floor(s * RATE));
-  const square = (ph, duty = 0.5) => (ph - Math.floor(ph) < duty ? 1 : -1);
-  const tri = ph => 1 - 4 * Math.abs(ph - Math.floor(ph) - 0.5);
   const noise = () => Math.random() * 2 - 1;
-  const notes = (freqs, each, vol, wave) => {
-    const b = buf(each * freqs.length + 0.08), per = Math.floor(each * RATE);
-    let ph = 0;
-    for (let i = 0; i < b.length; i++) {
-      const n = Math.min(Math.floor(i / per), freqs.length - 1), local = (i - n * per) / RATE;
-      ph += freqs[n] / RATE;
-      b[i] = wave(ph) * vol * Math.exp(-local * 14);
+  const attack = (t, s) => Math.min(1, t / s);
+  /* Notas tipo campanita que se superponen; seq = [[frecuencia, inicio, duración], ...] */
+  const tones = (seq, vol) => {
+    const b = buf(Math.max(...seq.map(([, s, l]) => s + l * 2.5)) + 0.02);
+    for (const [f, s, l] of seq) {
+      const i0 = Math.floor(s * RATE), n = Math.min(b.length - i0, Math.floor(l * 2.5 * RATE));
+      for (let j = 0; j < n; j++) {
+        const t = j / RATE, w = 2 * Math.PI * f * t, env = attack(t, 0.008) * Math.exp(-t * 3 / l);
+        b[i0 + j] += (Math.sin(w) * 0.8 + Math.sin(2 * w) * 0.15 * Math.exp(-t * 8) + Math.sin(3 * w) * 0.05 * Math.exp(-t * 12)) * env * vol;
+      }
     }
     return b;
   };
-  const melody = (freqs, durs, vol, vibrato) => {
-    const b = buf(durs.reduce((a, c) => a + c, 0) + 0.1);
-    let idx = 0, ph = 0, ph2 = 0;
-    freqs.forEach((f, n) => {
-      const len = Math.floor(durs[n] * RATE);
-      for (let j = 0; j < len && idx < b.length; j++) {
-        const t = j / RATE, v = vibrato ? 1 + 0.015 * Math.sin(2 * Math.PI * 6 * t) : 1;
-        ph += f * v / RATE; ph2 += f * 2 * v / RATE;
-        const env = Math.min(1, t * 200) * Math.exp(-t * (2.5 / durs[n]));
-        b[idx++] = (tri(ph) * 0.7 + square(ph2, 0.25) * 0.15) * env * vol;
-      }
-    });
-    return b;
-  };
+  const arp = (freqs, step, len, vol) => tones(freqs.map((f, i) => [f, i * step, len]), vol);
   let b, ph = 0, lp = 0;
   switch (id) {
-    case SFX.SHOOT: { const d = 0.11; b = buf(d);
-      for (let i = 0; i < b.length; i++) { const t = i / RATE; ph += 880 * (1 - 0.65 * t / d) / RATE; const e = (1 - t / d) ** 2; b[i] = (square(ph) * 0.4 + noise() * 0.08) * e; }
+    case SFX.SHOOT: { const d = 0.13; b = buf(d); // "pop" suave
+      for (let i = 0; i < b.length; i++) { const t = i / RATE; ph += 140 * Math.pow(300 / 140, 1 - t / d) / RATE; lp += (noise() - lp) * 0.08; b[i] = (Math.sin(2 * Math.PI * ph) * 0.5 + lp * 0.25) * attack(t, 0.003) * Math.exp(-t * 30); }
       return b; }
-    case SFX.BRICK: b = buf(0.14);
-      for (let i = 0; i < b.length; i++) { const t = i / RATE; lp += (noise() - lp) * 0.35; b[i] = lp * Math.exp(-t * 28) * 1.1; }
-      return b;
-    case SFX.STEEL: b = buf(0.22);
-      for (let i = 0; i < b.length; i++) { const t = i / RATE, w = 2 * Math.PI * t; b[i] = (Math.sin(w * 1760) * 0.5 + Math.sin(w * 2640) * 0.3 + Math.sin(w * 3960) * 0.15) * Math.exp(-t * 22) * 0.7; }
-      return b;
-    case SFX.EXPLODE: { const d = 0.5; b = buf(d);
-      for (let i = 0; i < b.length; i++) { const t = i / RATE; lp += (noise() - lp) * (0.6 - 0.52 * t / d); ph += (95 - 60 * t / d) / RATE; b[i] = (lp * 0.9 + Math.sin(2 * Math.PI * ph) * 0.35) * Math.exp(-t * 7); }
+    case SFX.BRICK: { const d = 0.16; b = buf(d); // desmoronar apagado
+      for (let i = 0; i < b.length; i++) { const t = i / RATE; lp += (noise() - lp) * 0.1; ph += (150 - 60 * t / d) / RATE; b[i] = (lp * 1.6 + Math.sin(2 * Math.PI * ph) * 0.3) * attack(t, 0.002) * Math.exp(-t * 26); }
       return b; }
-    case SFX.BIG: { const d = 1.1; b = buf(d);
-      for (let i = 0; i < b.length; i++) { const t = i / RATE; lp += (noise() - lp) * (0.3 - 0.26 * t / d); ph += (60 - 25 * t / d) / RATE; const e = Math.min(1, t * 80) * Math.exp(-t * 3.2); b[i] = (lp * 1.4 + Math.sin(2 * Math.PI * ph) * 0.45 * Math.exp(-t * 4)) * e; }
-      return b; }
-    case SFX.POWER_APPEAR: return notes([660, 880, 990, 1320], 0.09, 0.45, tri);
-    case SFX.PICKUP: return notes([523, 659, 784, 1047, 1319, 1568], 0.07, 0.3, p => square(p, 0.25));
-    case SFX.ARMOR: b = buf(0.1);
-      for (let i = 0; i < b.length; i++) { const t = i / RATE; ph += 180 / RATE; b[i] = (square(ph) * 0.4 + noise() * 0.3) * Math.exp(-t * 35); }
+    case SFX.STEEL: b = buf(0.18); // "toc" de madera
+      for (let i = 0; i < b.length; i++) { const t = i / RATE, w = 2 * Math.PI * t; b[i] = (Math.sin(w * 780) * 0.4 + Math.sin(w * 1170) * 0.12) * attack(t, 0.0015) * Math.exp(-t * 32); }
       return b;
-    case SFX.STAGE: return melody([392, 523, 659, 784, 659, 784, 1047], [0.11, 0.11, 0.11, 0.22, 0.11, 0.11, 0.45], 0.4, false);
-    case SFX.GAMEOVER: return melody([523, 466, 415, 349], [0.25, 0.25, 0.25, 0.9], 0.45, true);
-    default: b = buf(0.06);
-      for (let i = 0; i < b.length; i++) { const t = i / RATE; b[i] = Math.sin(2 * Math.PI * 1200 * t) * Math.exp(-t * 50) * 0.5; }
+    case SFX.EXPLODE: { const d = 0.55; b = buf(d); // "puf"
+      for (let i = 0; i < b.length; i++) { const t = i / RATE; lp += (noise() - lp) * (0.14 - 0.11 * t / d); ph += (120 - 75 * t / d) / RATE; b[i] = (lp * 1.6 + Math.sin(2 * Math.PI * ph) * 0.45) * attack(t, 0.005) * Math.exp(-t * 6.5); }
+      return b; }
+    case SFX.BIG: { const d = 1.1; b = buf(d); // retumbo grave y redondo
+      for (let i = 0; i < b.length; i++) { const t = i / RATE; lp += (noise() - lp) * (0.09 - 0.07 * t / d); ph += (80 - 45 * t / d) / RATE; b[i] = (lp * 2 + Math.sin(2 * Math.PI * ph) * 0.5 * Math.exp(-t * 2.5)) * attack(t, 0.01) * Math.exp(-t * 3); }
+      return b; }
+    case SFX.POWER_APPEAR: return arp([587, 784, 988, 1175], 0.08, 0.3, 0.26);
+    case SFX.PICKUP: return arp([523, 659, 784, 1047, 1319], 0.06, 0.28, 0.24);
+    case SFX.ARMOR: b = buf(0.12); // "bonk" suave
+      for (let i = 0; i < b.length; i++) { const t = i / RATE; ph += (240 - 600 * Math.min(t, 0.12)) / RATE; b[i] = Math.sin(2 * Math.PI * ph) * 0.5 * attack(t, 0.002) * Math.exp(-t * 28); }
+      return b;
+    case SFX.STAGE: return tones([[262, 0, 0.9], [392, 0, 0.25], [523, 0.14, 0.25], [659, 0.28, 0.25], [784, 0.42, 0.4], [659, 0.62, 0.25], [784, 0.76, 0.3], [1047, 0.92, 0.7], [523, 0.92, 0.9]], 0.24);
+    case SFX.GAMEOVER: return tones([[523, 0, 0.35], [440, 0.3, 0.35], [392, 0.6, 0.35], [330, 0.9, 0.9], [196, 0.9, 1.0]], 0.28);
+    default: b = buf(0.09); // blip de menú
+      for (let i = 0; i < b.length; i++) { const t = i / RATE, w = 2 * Math.PI * 660 * t; b[i] = (Math.sin(w) + Math.sin(2 * w) * 0.2) * 0.3 * attack(t, 0.002) * Math.exp(-t * 38); }
       return b;
   }
 }
@@ -310,10 +299,14 @@ const sfx = {
         const AC = window.AudioContext || window.webkitAudioContext;
         this.ctx = new AC();
         this.master = this.ctx.createGain();
-        this.master.gain.value = this.muted ? 0 : 0.7;
-        this.master.connect(this.ctx.destination);
+        this.master.gain.value = this.muted ? 0 : SFX_VOL;
+        const warm = this.ctx.createBiquadFilter(); // recorta agudos para un sonido más cálido
+        warm.type = 'lowpass'; warm.frequency.value = 3200; warm.Q.value = 0.5;
+        this.master.connect(warm); warm.connect(this.ctx.destination);
         for (let i = 0; i < 11; i++) {
           const d = synth(i), b = this.ctx.createBuffer(1, d.length, RATE);
+          const fade = Math.min(220, d.length); // final sin clics
+          for (let k = 0; k < fade; k++) d[d.length - 1 - k] *= k / fade;
           b.getChannelData(0).set(d);
           this.bufs[i] = b;
         }
@@ -321,13 +314,15 @@ const sfx = {
     }
     if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
   },
-  toggleMute() { this.muted = !this.muted; if (this.master) this.master.gain.value = this.muted ? 0 : 0.7; },
+  toggleMute() { this.muted = !this.muted; if (this.master) this.master.gain.value = this.muted ? 0 : SFX_VOL; },
   play(id, vol = 1, rate = 1) {
     netEvent(['a', id, vol, rate]);
     if (!this.ctx || !this.bufs[id]) return;
     const now = performance.now();
-    if (now - this.last[id] < 35) return;
+    if (now - this.last[id] < 60) return;
     this.last[id] = now;
+    // Pequeña variación de tono en los efectos repetitivos para que no cansen.
+    if (id <= SFX.BIG || id === SFX.ARMOR) rate *= 0.95 + Math.random() * 0.1;
     try {
       const s = this.ctx.createBufferSource(), g = this.ctx.createGain();
       s.buffer = this.bufs[id]; s.playbackRate.value = rate; g.gain.value = vol * 0.85;
