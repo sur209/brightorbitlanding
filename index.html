@@ -5,14 +5,14 @@
   position: relative;
   overflow: hidden;
   isolation: isolate;
-  background: radial-gradient(ellipse 60rem 42rem at 76% 3%, #1b1b1b, #101010 54%, transparent), #080808;
+  background: radial-gradient(ellipse 42rem 22rem at 82% 100%, #1b1b1b, #101010 52%, transparent), #080808;
 }
 .arcade-backdrop {
   position: absolute;
   z-index: -1;
-  top: 0;
-  right: max(-76px, calc((100% - 1460px) / 2));
-  width: clamp(320px, 48vw, 660px);
+  bottom: 0;
+  right: max(0px, calc((100% - 1100px) / 2));
+  width: clamp(270px, 34vw, 460px);
   height: auto;
   opacity: .65;
   pointer-events: none;
@@ -123,12 +123,12 @@ a:focus-visible { outline: 3px solid #fff; outline-offset: 4px; }
   header { gap: 8px; }
   .sign { padding-top: 38px; }
   .hall { padding-top: 16px; padding-bottom: 42px; }
-  .arcade-backdrop { right: -65px; width: min(370px, 84vw); opacity: .48; }
+  .arcade-backdrop { right: 0; width: 52vw; opacity: .55; }
   .panel { padding-inline: .3rem; }
   .panel p { font-size: .875rem; }
 }
 @media (max-width: 359px) {
-  .hall { grid-template-columns: minmax(0, 1fr); }
+  .hall { grid-template-columns: minmax(0, 1fr); padding-bottom: 210px; }
 }
 </style></head><body id="games"><header><span><span class="orbit" aria-hidden="true">◉</span> BRIGHT ORBIT GAMES</span><a href="#games">Games</a></header><main>
 <svg class="arcade-backdrop" viewBox="0 0 420 520" width="420" height="520" aria-hidden="true" focusable="false">
@@ -143,7 +143,7 @@ a:focus-visible { outline: 3px solid #fff; outline-offset: 4px; }
       <stop offset="1" stop-color="#0d0d0d" />
     </linearGradient>
     <linearGradient id="arcade-fade" x2="0" y2="1">
-      <stop offset=".46" stop-color="#fff" />
+      <stop offset=".7" stop-color="#fff" />
       <stop offset="1" stop-color="#000" />
     </linearGradient>
     <mask id="arcade-mask">
