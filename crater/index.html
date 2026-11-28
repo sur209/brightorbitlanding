@@ -177,7 +177,7 @@ const STR = {
       <li><b>Touch / mouse:</b> drag on the battlefield to aim: the direction sets the angle and the distance from your tank sets the power. The buttons at the bottom fine-tune, drive, change weapon and fire. Mouse wheel: power.</li>
       <li><b>Gamepad:</b> left stick aim and power · D-pad drive · LB RB weapon · A fire · Start pause</li></ul>
       <h3>Tips</h3><ul><li>Wind pushes every shot: watch the gauge and the clouds.</li>
-      <li>Your last shot leaves a faint trail: correct from it.</li>
+      <li>While aiming, the dotted line shows how your shot starts its arc. Your last shot leaves a faint trail: correct from it.</li>
       <li>Long falls hurt, and whatever is at the bottom (water, lava, the void) is deadly.</li></ul>
       <h3>Weapons</h3><ul>
       <li><b>Shell</b> — reliable and unlimited.</li><li><b>Cluster</b> — bursts into five bomblets.</li>
@@ -219,7 +219,7 @@ const STR = {
       <li><b>Táctil / ratón:</b> arrastra sobre el campo para apuntar: la dirección marca el ángulo y la distancia a tu tanque, la potencia. Los botones de abajo sirven para afinar, moverte, cambiar de arma y disparar. Rueda del ratón: potencia.</li>
       <li><b>Mando:</b> stick izquierdo apuntar y potencia · cruceta mover · LB RB arma · A disparar · Start pausa</li></ul>
       <h3>Consejos</h3><ul><li>El viento empuja todos los disparos: mira el indicador y las nubes.</li>
-      <li>Tu último disparo deja un rastro tenue: corrige a partir de él.</li>
+      <li>Al apuntar, la línea de puntos muestra el comienzo de la curva del disparo. Tu último disparo deja un rastro tenue: corrige a partir de él.</li>
       <li>Las caídas largas hacen daño, y lo que hay al fondo (agua, lava, el vacío) es mortal.</li></ul>
       <h3>Armas</h3><ul>
       <li><b>Obús</b> — fiable e ilimitado.</li><li><b>Racimo</b> — se divide en cinco bombas.</li>
@@ -244,13 +244,13 @@ const COLORS = ['#FF5A4E', '#3FA9FF', '#FFC53D', '#C77DFF'];
 const FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif';
 const FIRE_COLORS = [0xFFF3B0, 0xFFC14D, 0xFF7A3D, 0xE04A2F];
 const KIND = [
-  { id: 'shell', r: 30, dmg: 42, ammo: -1, size: 4, col: 0x30343C },
-  { id: 'cluster', r: 22, dmg: 22, ammo: 2, size: 5, col: 0xFF8A3D },
-  { id: 'mega', r: 72, dmg: 72, ammo: 1, size: 7, col: 0x9B5CFF },
-  { id: 'drill', r: 32, dmg: 48, ammo: 2, size: 4, col: 0xB8C2CC },
-  { id: 'bouncer', r: 28, dmg: 38, ammo: 2, size: 5, col: 0x4FE08A },
+  { id: 'shell', r: 36, dmg: 42, ammo: -1, size: 4, col: 0x30343C },
+  { id: 'cluster', r: 24, dmg: 22, ammo: 2, size: 5, col: 0xFF8A3D },
+  { id: 'mega', r: 80, dmg: 72, ammo: 1, size: 7, col: 0x9B5CFF },
+  { id: 'drill', r: 36, dmg: 48, ammo: 2, size: 4, col: 0xB8C2CC },
+  { id: 'bouncer', r: 34, dmg: 38, ammo: 2, size: 5, col: 0x4FE08A },
   { id: 'clod', r: 46, dmg: 0, ammo: 2, size: 6, col: 0x9A6B45 },
-  { id: 'bomblet', r: 18, dmg: 20, ammo: 0, size: 3, col: 0xFFB066 },
+  { id: 'bomblet', r: 20, dmg: 20, ammo: 0, size: 3, col: 0xFFB066 },
 ];
 const K_CLUSTER = 1, K_MEGA = 2, K_DRILL = 3, K_BOUNCE = 4, K_CLOD = 5, K_BOMBLET = 6, N_WEAPONS = 6;
 const THEMES = [
@@ -679,7 +679,7 @@ function makePlayer(slot, name, ci, ctrl, diff) {
 }
 function resetTank(p, spot) {
   p.x = spot.x; p.y = spot.y; p.vy = 0; p.hp = 100; p.alive = true; p.falling = false; p.fallFrom = p.y;
-  p.angle = p.x < W / 2 ? 55 : 125; p.power = 55; p.weapon = 0; p.fuel = FUEL_MAX; p.trail = []; p.ai = null; p.netMove = 0;
+  p.angle = p.x < W / 2 ? 55 : 125; p.power = 55; p.weapon = 0; p.fuel = FUEL_MAX; p.trail = []; p.ai = null; p.aimMem = null; p.netMove = 0;
   p.ammo = KIND.slice(0, N_WEAPONS).map(k => k.ammo);
 }
 function setTheme(i) { G.themeIdx = i; T.theme = THEMES[i]; G.grav = T.theme.grav; }
@@ -881,7 +881,8 @@ function driveTank(t, dir, dt) {
   t.x = nx; t.y = y - climb; t.fallFrom = Math.min(t.fallFrom, t.y);
   if (Math.random() < 0.25) dust(t.x - dir * 12, t.y, 1);
 }
-function inTank(o, x, y) { return Math.abs(x - o.x) <= 13 && y >= o.y - 17 && y <= o.y + 1; }
+/* Un poco más grande que el dibujo del tanque: los roces cuentan como impacto. */
+function inTank(o, x, y) { return Math.abs(x - o.x) <= 17 && y >= o.y - 21 && y <= o.y + 2; }
 
 function fire(t) {
   if (G.phase !== 'aim' || !t.alive) return;
@@ -977,12 +978,14 @@ function detonate(p, x, y) {
 function explode(x, y, r, dmg, owner, big) {
   E(['x', Math.round(x), Math.round(y), r, big ? 1 : 0]);
   if (dmg <= 0) return;
-  const reach = r + 16;
+  /* Daño completo cerca del centro y, hacia el borde, baja hasta un 30 %:
+     un tiro que cae cerca siempre hace un daño que se nota. */
+  const reach = r + 22;
   for (const t of G.players) {
     if (!t.alive) continue;
     const d = Math.hypot(t.x - x, t.y - 8 - y);
     if (d >= reach) continue;
-    let amt = dmg * (1 - Math.max(0, d - 6) / (reach - 6));
+    let amt = dmg * (1 - 0.7 * Math.max(0, d - 8) / (reach - 8));
     if (t === owner) amt *= 0.7;
     damageTank(t, Math.max(1, Math.round(amt)), owner);
   }
@@ -1029,7 +1032,7 @@ function aiPlan(t) {
     const r = simulate(t, a, p);
     if (!r) return 1e9;
     let d = r.tank === target ? 0 : Math.hypot(r.x - tx, r.y - ty);
-    if (r.tank === t || Math.hypot(r.x - t.x, r.y - t.y + 8) < 48) d += 2000;
+    if (r.tank === t || Math.hypot(r.x - t.x, r.y - t.y + 8) < 64) d += 2000;
     if (r.water) d += 30;
     return d;
   };
@@ -1042,15 +1045,32 @@ function aiPlan(t) {
     const d = score(a, p);
     if (d < best.d) best = { a, p, d };
   }
-  const err = [[9, 8], [3, 3.5], [0.8, 1.2]][t.diff] || [3, 3.5];
+  /* Puntería que se va afinando: el primer tiro a un rival sale con un desvío
+     grande (como alguien que tantea) y ese desvío se corrige tiro a tiro. */
+  const S = AI_SKILL[t.diff] || AI_SKILL[1];
+  let m = t.aimMem;
+  if (!m || m.slot !== target.slot) {
+    const sg = () => (Math.random() < 0.5 ? -1 : 1);
+    m = t.aimMem = { slot: target.slot, n: 0, ba: sg() * rand(0.6, 1) * S.a, bp: sg() * rand(0.6, 1) * S.p };
+  }
+  const k = Math.pow(S.keep, m.n);
+  m.n++;
   const has = i => t.ammo[i] !== 0;
   let w = 0;
   const r = Math.random();
-  if (best.d > 60 && has(K_DRILL)) w = K_DRILL;
-  else if (has(K_MEGA) && target.hp > 45 && r < 0.4) w = K_MEGA;
-  else if (has(K_CLUSTER) && r < 0.65) w = K_CLUSTER;
-  return { a: clamp(best.a + rand(-err[0], err[0]), 0, 180), p: clamp(best.p + rand(-err[1], err[1]), 5, 100), w };
+  if (best.d > 60 && has(K_DRILL) && Math.random() < S.smart) w = K_DRILL;
+  else if (has(K_MEGA) && target.hp > 45 && r < 0.4 * S.smart) w = K_MEGA;
+  else if (has(K_CLUSTER) && r < 0.65 * S.smart) w = K_CLUSTER;
+  return { a: clamp(best.a + m.ba * k + rand(-S.ja, S.ja), 0, 180), p: clamp(best.p + m.bp * k + rand(-S.jp, S.jp), 5, 100), w };
 }
+/* a/p: desvío del primer tiro (grados / potencia) · keep: cuánto queda de ese
+   desvío en cada tiro siguiente · ja/jp: pulso, error que nunca desaparece ·
+   smart: qué tan bien elige armas especiales. */
+const AI_SKILL = [
+  { a: 14, p: 15, keep: 0.78, ja: 4, jp: 4.5, smart: 0.35 }, // Fácil
+  { a: 9, p: 10, keep: 0.62, ja: 2, jp: 2.5, smart: 0.75 },  // Normal
+  { a: 5, p: 6, keep: 0.45, ja: 0.8, jp: 1.2, smart: 1 },    // Difícil
+];
 function aiStep(t, dt) {
   if (!t.ai) t.ai = { plan: null, think: rand(0.6, 1.1), hold: 0.35 };
   const ai = t.ai;
@@ -1330,16 +1350,30 @@ function drawAimGuide() {
   if (G.phase !== 'aim') return;
   const t = cur();
   if (!t || !t.alive) return;
-  const a = aimOf(t), ang = a.angle * RAD, c = Math.cos(ang), s = Math.sin(ang);
-  const px = t.x + c * 22, py = t.y - 11 - s * 22, len = 18 + a.power * 1.3;
+  /* Muestra el primer tramo de la curva real del disparo (con gravedad y
+     viento): ayuda a apuntar sin revelar dónde va a caer. */
+  const a = aimOf(t), ang = a.angle * RAD, v = a.power * POWER_K;
+  let x = t.x + Math.cos(ang) * 20, y = t.y - 11 - Math.sin(ang) * 20, vx = Math.cos(ang) * v, vy = -Math.sin(ang) * v;
+  const h = 1 / 120, wa = G.wind * WIND_K, g = G.grav, steps = Math.round(AIM_PREVIEW_T / h);
+  const pts = [];
+  for (let n = 1; n <= steps; n++) {
+    vx += wa * h; vy += g * h; x += vx * h; y += vy * h;
+    if (solid(x, y) || y >= WATER_Y) break;
+    if (n % 4 === 0) pts.push([x, y]);
+  }
   ctx.save();
-  ctx.setLineDash([4, 5]); ctx.lineDashOffset = -G.time * 20;
-  ctx.strokeStyle = 'rgba(255,255,255,.75)'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + c * len, py - s * len); ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.fillStyle = t.color; circle(px + c * len, py - s * len, 3.5); ctx.fill();
+  const shift = (G.time * 1.5) % 1;
+  for (let i = 0; i < pts.length; i++) {
+    const f = 1 - i / Math.max(1, pts.length), r = 1.4 + 1.4 * f;
+    ctx.fillStyle = 'rgba(255,255,255,' + (0.25 + 0.6 * f * (0.75 + 0.25 * Math.sin((i / 3 - shift) * Math.PI * 2))) + ')';
+    circle(pts[i][0], pts[i][1], r); ctx.fill();
+  }
+  const end = pts[pts.length - 1];
+  if (end) { ctx.fillStyle = t.color; circle(end[0], end[1], 3); ctx.fill(); }
   ctx.restore();
 }
+/* Segundos de vuelo que muestra la guía de puntería. */
+const AIM_PREVIEW_T = 0.5;
 function drawProjectiles() {
   for (const p of G.projectiles) {
     const k = KIND[p.k];
