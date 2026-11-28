@@ -241,7 +241,7 @@ const STR = {
     paused: 'Paused', resume: 'Resume', quit: 'Quit to menu', leave_q: 'Leave the match?', keep: 'Keep playing', leave_game: 'Leave match',
     wave_n: 'WAVE {0}', wave_short: 'Wave {0}', left_n: '{0} left', boss_in: 'BOSS INCOMING', boss_down: 'BOSS DESTROYED', boss_glory: 'The hive trembles!', boss_phase: 'IT’S ENRAGED!',
     wave_clear: 'WAVE CLEARED', get_ready: 'Get ready…', choose: 'Pick an upgrade', choose_sub: 'Wave {0} done', picks_n: '{0} picks left',
-    br_fire: 'FIRE', br_power: 'POWER', br_def: 'DEFENSE', br_move: 'MOVE', needs: 'Needs {0} first', maxed: 'Maxed out', pick_btn: 'Pick', pick_hint: 'Tap an upgrade to see what it does', level_bonus: '+6% damage · +3% fire rate · +15 HP',
+    br_fire: 'FIRE', br_power: 'POWER', br_def: 'DEFENSE', br_move: 'MOVE', needs: 'Max out {0} first ({1}/{2})', maxed: 'Maxed out', pick_btn: 'Pick', pick_hint: 'Tap an upgrade to see what it does', level_bonus: '+6% damage · +3% fire rate · +15 HP',
     lv_to: 'Level {0} → {1}', lv_new: 'New', lv_max: 'Max level', auto_in: 'Auto-pick in {0} s', waiting_for: 'Waiting for {0}…',
     level_up: 'LEVEL UP!', down_msg: 'You’re down — you’ll be back next wave', is_down: '{0} is down!', revived: 'Back in the fight!',
     over_solo: 'You fell', over_coop: 'The swarm prevails', st_score: 'Score', st_wave: 'Wave', st_time: 'Time', st_kills: 'Kills',
@@ -284,7 +284,7 @@ const STR = {
     paused: 'Pausa', resume: 'Seguir', quit: 'Salir al menú', leave_q: '¿Salir de la partida?', keep: 'Seguir jugando', leave_game: 'Salir',
     wave_n: 'OLEADA {0}', wave_short: 'Oleada {0}', left_n: 'Quedan {0}', boss_in: '¡SE ACERCA UN JEFE!', boss_down: '¡JEFE DESTRUIDO!', boss_glory: '¡La colmena tiembla!', boss_phase: '¡SE HA ENFURECIDO!',
     wave_clear: 'OLEADA SUPERADA', get_ready: 'Prepárate…', choose: 'Elige una mejora', choose_sub: 'Oleada {0} superada', picks_n: 'te quedan {0}',
-    br_fire: 'DISPARO', br_power: 'POTENCIA', br_def: 'DEFENSA', br_move: 'MOVIMIENTO', needs: 'Primero necesitas {0}', maxed: 'Al máximo', pick_btn: 'Elegir', pick_hint: 'Toca una mejora para ver qué hace', level_bonus: '+6 % daño · +3 % cadencia · +15 vida',
+    br_fire: 'DISPARO', br_power: 'POTENCIA', br_def: 'DEFENSA', br_move: 'MOVIMIENTO', needs: 'Completa primero {0} ({1}/{2})', maxed: 'Al máximo', pick_btn: 'Elegir', pick_hint: 'Toca una mejora para ver qué hace', level_bonus: '+6 % daño · +3 % cadencia · +15 vida',
     lv_to: 'Nivel {0} → {1}', lv_new: 'Nueva', lv_max: 'Nivel máximo', auto_in: 'Elección automática en {0} s', waiting_for: 'Esperando a {0}…',
     level_up: '¡SUBES DE NIVEL!', down_msg: 'Has caído: volverás en la próxima oleada', is_down: '¡{0} ha caído!', revived: '¡De vuelta al combate!',
     over_solo: 'Has caído', over_coop: 'El enjambre ha ganado', st_score: 'Puntos', st_wave: 'Oleada', st_time: 'Tiempo', st_kills: 'Bajas',
@@ -356,7 +356,7 @@ const UPS = [
   { id: 'pierce', max: 4, col: '#7FD4FF', ic: SVG('<path d="M2 12h18M15 7l5 5-5 5M9 4v16"/>') },
   { id: 'multi', max: 4, col: '#8DFFC0', ic: SVG('<path d="M4 20L20 4M4 20l17-5M4 20L9 3"/>') },
   { id: 'split', max: 3, col: '#5CE1FF', ic: SVG('<path d="M2 12h7"/><circle cx="12" cy="12" r="2.5"/><path d="M15 9l5-5M15 15l5 5M16 12h6"/>') },
-  { id: 'big', max: 3, col: '#FFF07A', ic: SVG('<circle cx="14" cy="12" r="7"/><path d="M1 9h4M0 12h5M1 15h4"/>') },
+  { id: 'big', max: 6, col: '#FFF07A', ic: SVG('<circle cx="14" cy="12" r="7"/><path d="M1 9h4M0 12h5M1 15h4"/>') },
   { id: 'explo', max: 3, col: '#FF4A2E', ic: SVG('<circle cx="12" cy="12" r="4"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4M4 4l3 3M17 17l3 3M4 20l3-3M17 7l3-3"/>') },
   { id: 'elec', max: 3, col: '#8C7BFF', ic: SVG('<path d="M13 2L5 14h6l-1 8 8-12h-6z"/>') },
   { id: 'speed', max: 4, col: '#3FE6FF', ic: SVG('<path d="M2 8h10M4 12h12M2 16h10M15 6l6 6-6 6"/>') },
@@ -373,7 +373,7 @@ const UPD = {};
 for (const u of UPS) UPD[u.id] = u;
 UPD.heal = UP_HEAL;
 /* Árbol de mejoras: cuatro ramas. Cada una empieza en su raíz y las de debajo
-   se desbloquean al tener al menos 1 nivel de la anterior. */
+   se desbloquean al completar todos los niveles de la anterior. */
 const TREE = [
   { k: 'br_fire', col: '#FFD24D', root: 'rate', a: ['multi', 'split'], b: ['pierce'] },
   { k: 'br_power', col: '#FF6B5A', root: 'dmg', a: ['big', 'explo'], b: ['crit', 'elec'] },
@@ -381,7 +381,11 @@ const TREE = [
   { k: 'br_move', col: '#3FE6FF', root: 'speed', a: ['burn'], b: ['magnet'] },
 ];
 for (const br of TREE) for (const chain of [br.a, br.b]) chain.forEach((id, i) => { UPD[id].req = i ? chain[i - 1] : br.root; });
-const upAvail = (lv, id) => { const u = UPD[id]; return (lv[id] || 0) < u.max && (!u.req || (lv[u.req] || 0) >= 1); };
+const upMaxed = (lv, id) => (lv[id] || 0) >= UPD[id].max;
+const upAvail = (lv, id) => {
+  const u = UPD[id];
+  return !upMaxed(lv, id) && (!u.req || upMaxed(lv, u.req));
+};
 
 /* Distribuciones de obstáculos (c: 1 = pilar circular; si no, muro rectangular). */
 function mirror4(r) {
@@ -690,13 +694,19 @@ function makePlayer(slot, name, ctrl) {
 }
 const AMMO = ['', 'big', 'explo', 'elec'];   // aspecto de la bala: normal (color del jugador), gorda, explosiva o eléctrica
 const AMMO_COL = [null, '#FFF07A', '#FF4A2E', '#8C7BFF'];
+// El código visual viaja en la instantánea online. Los tamaños originales conservan sus códigos.
+const BULLET_SHARD = 16, BULLET_SMALL = 32;
+const bigBulletPower = vis => ((vis >> 2) & 3) * (vis & BULLET_SMALL ? 0.25 : 1);
 function calcStats(p) {
   const u = p.up;
-  p.st = { rate: 5.5 * (1 + 0.2 * u.rate) * (1 + 0.03 * (p.lvl - 1)), dmg: 10 * (1 + 0.25 * u.dmg) * (1 - 0.06 * u.multi) * (1 + 0.2 * u.big) * (1 + 0.06 * (p.lvl - 1)), pierce: u.pierce, multi: 1 + u.multi, bounce: 0,
+  const bigCode = u.big === 0 ? 0 : u.big <= 3 ? BULLET_SMALL + 4 * u.big : 4 * (u.big - 3);
+  const vis = AMMO.indexOf(p.ammo) + bigCode;
+  const big = bigBulletPower(vis);
+  p.st = { rate: 5.5 * (1 + 0.2 * u.rate) * (1 + 0.03 * (p.lvl - 1)), dmg: 10 * (1 + 0.25 * u.dmg) * (1 - 0.06 * u.multi) * (1 + 0.2 * big) * (1 + 0.06 * (p.lvl - 1)), pierce: u.pierce, multi: 1 + u.multi, bounce: 0,
     magnet: 80 * (1 + 0.7 * u.magnet), crit: 0.05 + 0.12 * u.crit, regen: 0.8 * u.regen, burn: 30 * u.burn,
     // tipo de bala: tamaño, empuje, explosión, rayo y metralla; el color lo da el último tipo elegido
-    br: 5 + 4 * u.big, kb: 90 * (1 + 0.6 * u.big), bspd: BULLET_SPD * (1 - 0.07 * u.big), ex: u.explo, ch: u.elec, sp: u.split,
-    vis: AMMO.indexOf(p.ammo) + 4 * u.big };
+    br: 5 + 4 * big, kb: 90 * (1 + 0.6 * big), bspd: BULLET_SPD * (1 - 0.07 * big), ex: u.explo, ch: u.elec, sp: u.split,
+    vis };
   p.spd = 270 * (1 + 0.08 * u.speed); p.dcdMax = 1.15 * Math.pow(0.86, u.speed); p.rate = p.st.rate;
   p.maxHp = 100 + 25 * u.hp; p.shieldMax = u.shield; p.drones = u.drone;
 }
@@ -1130,7 +1140,7 @@ function bulletSplit(b, x, y, killedId) {
     const a = a0 - 1.1 + 2.2 * i / (n - 1) + rand(-0.08, 0.08);
     s.x = x; s.y = y; s.vx = Math.cos(a) * 720; s.vy = Math.sin(a) * 720; s.owner = b.owner; s.pierce = 0; s.bounce = 0;
     s.life = 0.45; s.nh = 1; s.hits[0] = killedId; s.drone = false; s.crit = false; s.dmg = b.dmg * 0.5;
-    s.r = 4; s.kb = 40; s.ex = 0; s.ch = 0; s.sp = 0; s.shard = true; s.vis = (b.vis & 3) | 16;
+    s.r = 4; s.kb = 40; s.ex = 0; s.ch = 0; s.sp = 0; s.shard = true; s.vis = (b.vis & 3) | BULLET_SHARD;
   }
 }
 function hurtPlayer(p, dmg) {
@@ -1634,7 +1644,7 @@ function updatePBullets(dt) {
       fx(['h', Math.round(b.x), Math.round(b.y), ET[e.t].col, Math.round(Math.atan2(-b.vy, -b.vx) * 100) / 100]);
       if (b.owner === mySlot()) sfx.play(SFX.HIT, 0.25, rand(0.9, 1.2));
       const ex = e.x, ey = e.y, eid = e.id;
-      hurtEnemy(e, b.dmg, b.owner, b.crit, b.vx, b.vy, b.kb, b.drone || b.shard ? 0 : 3 * ((b.vis >> 2) & 3));
+      hurtEnemy(e, b.dmg, b.owner, b.crit, b.vx, b.vy, b.kb, b.drone || b.shard ? 0 : 3 * bigBulletPower(b.vis));
       if (b.ex) bulletBlast(b, b.x, b.y, eid);
       if (b.ch) bulletZap(b, ex, ey, eid);
       if (b.sp && !b.shard && !e.alive) bulletSplit(b, ex, ey, eid);
@@ -1749,7 +1759,7 @@ function presentOffer(p) {
 }
 function applyUpgrade(p, id) {
   if (id === 'heal') { p.hp = p.maxHp; G.score += 250; return; }
-  if (!UPD[id] || p.up[id] >= UPD[id].max) return;
+  if (!UPD[id] || !upAvail(p.up, id)) return;
   p.up[id]++;
   if (id === 'big' || id === 'explo' || id === 'elec') p.ammo = id;
   calcStats(p);
@@ -2422,7 +2432,7 @@ function drawBullets() {
   const s = CAM.s, ox = CAM.ox, oy = CAM.oy;
   ctx.globalCompositeOperation = 'lighter';
   for (let i = 0; i < PB.n; i++) {
-    const b = PB.a[i], ci = b.drone ? 0 : b.vis & 3, sz = b.drone ? 0 : (b.vis >> 2) & 3, shard = !b.drone && (b.vis & 16);
+    const b = PB.a[i], ci = b.drone ? 0 : b.vis & 3, sz = b.drone ? 0 : bigBulletPower(b.vis), shard = !b.drone && (b.vis & BULLET_SHARD);
     const col = b.drone ? '#C6F25A' : ci ? AMMO_COL[ci] : PCOL[b.owner];
     if (!shard && (sz > 0 || ci === 2)) {   // bala gorda o explosiva: una bola
       const d = 9 + 6 * sz;
@@ -2807,14 +2817,17 @@ function upPips(u, lv, max, nw) {
   for (let k = 0; k < max; k++) h += `<i class="${k < lv ? 'on' : k === nw ? 'nw' : ''}"></i>`;
   return h;
 }
+function upRequirement(u) {
+  return u.req ? tr('needs', tr('u_' + u.req), upLv[u.req] || 0, UPD[u.req].max) : '';
+}
 function upNode(id) {
-  const u = UPD[id], lv = upLv[id] || 0, av = upOffer.includes(id), mx = id !== 'heal' && lv >= u.max;
+  const u = UPD[id], lv = upLv[id] || 0, av = upOffer.includes(id), mx = upMaxed(upLv, id);
   const b = document.createElement('button');
   b.type = 'button'; b.dataset.id = id; b.style.setProperty('--c', u.col);
   b.className = 'nd' + (av ? ' av' : mx ? ' mx' : ' lk');
   b.innerHTML = `<span class="ic">${u.ic}</span><span class="nm"></span>` + (id === 'heal' ? '' : `<span class="pp">${upPips(u, lv, u.max)}</span>`);
   b.querySelector('.nm').textContent = tr('u_' + id);
-  b.setAttribute('aria-label', tr('u_' + id) + (id === 'heal' ? '' : ` ${lv}/${u.max}`) + (av ? '' : mx ? '. ' + tr('maxed') : '. ' + tr('needs', tr('u_' + u.req))));
+  b.setAttribute('aria-label', tr('u_' + id) + (id === 'heal' ? '' : ` ${lv}/${u.max}`) + (av ? '' : '. ' + (mx ? tr('maxed') : upRequirement(u))));
   b.addEventListener('pointerdown', () => { upPtr = true; });
   b.addEventListener('focus', () => { if (!upPtr) upSelect(id); upPtr = false; });   // teclado y mando: enfocar ya muestra la mejora
   b.addEventListener('click', () => { upPtr = false; if (upSel === id && performance.now() - upSelT > 250) upChoose(); else upSelect(id); });
@@ -2837,7 +2850,7 @@ function upSelect(id) {
   box.querySelector('.nm').textContent = tr('u_' + id);
   box.querySelector('.pp').innerHTML = id === 'heal' ? '' : upPips(u, lv, u.max, av ? lv : -1);
   box.querySelector('.ds').textContent = tr('d_' + id);
-  box.querySelector('.rq').textContent = av ? '' : id !== 'heal' && lv >= u.max ? tr('maxed') : tr('needs', tr('u_' + u.req));
+  box.querySelector('.rq').textContent = av ? '' : upMaxed(upLv, id) ? tr('maxed') : upRequirement(u);
   pk.disabled = !av;
   pk.textContent = tr('pick_btn');
 }
@@ -2859,12 +2872,12 @@ function showUpgrade(offer, levels, picks) {
     d.className = 'br'; d.style.setProperty('--c', br.col);
     const h = document.createElement('div'); h.className = 'bh'; h.textContent = tr(br.k); d.appendChild(h);
     d.appendChild(upNode(br.root));
-    const fork = document.createElement('div'); fork.className = 'fork' + (upLv[br.root] ? ' on' : ''); d.appendChild(fork);
+    const fork = document.createElement('div'); fork.className = 'fork' + (upMaxed(upLv, br.root) ? ' on' : ''); d.appendChild(fork);
     const cols = document.createElement('div'); cols.className = 'cols';
     for (const chain of [br.a, br.b]) {
       const c = document.createElement('div'); c.className = 'col';
       chain.forEach((id, i) => {
-        if (i) { const l = document.createElement('div'); l.className = 'ln' + (upLv[chain[i - 1]] ? ' on' : ''); c.appendChild(l); }
+        if (i) { const l = document.createElement('div'); l.className = 'ln' + (upMaxed(upLv, chain[i - 1]) ? ' on' : ''); c.appendChild(l); }
         c.appendChild(upNode(id));
       });
       cols.appendChild(c);
