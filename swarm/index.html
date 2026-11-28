@@ -741,7 +741,7 @@ function applyEvent(e) {
     case 'r': ringFx(e[1], e[2], e[3], e[4], e[5]); break;
     case 'b': G.banner = { big: tr(e[1], e[3]), small: e[2] ? tr(e[2]) : '', col: e[4] || '#FFFFFF', t: 0, max: e[5] || 2.2 }; break;
     case 'hu': if (e[1] === mySlot()) { G.hurtT = 0.5; addShake(10); rumble(0.9, 0.5, 220); buzz(70); } break;
-    case 'lv': { const p = G.players[e[1]]; if (p) { popup(p.x, p.y - 34, tr('level_up'), '#8DFFC0', 1.3); popup(p.x, p.y - 12, tr('level_bonus'), '#FFFFFF', 0.9); ringFx(p.x, p.y, 70, '#8DFFC0', 0.45); } if (e[1] === mySlot()) sfx.play(SFX.LEVEL, 0.7); break; }
+    case 'lv': { const p = G.players[e[1]]; if (p) { popup(p.x, p.y - 45, tr('level_up'), '#8DFFC0', 1.9); popup(p.x, p.y - 14, tr('level_bonus'), '#FFFFFF', 1.2); ringFx(p.x, p.y, 70, '#8DFFC0', 0.45); } if (e[1] === mySlot()) sfx.play(SFX.LEVEL, 0.7); break; }
   }
 }
 function notice(s) { G.notice = s; G.noticeT = 4; }
