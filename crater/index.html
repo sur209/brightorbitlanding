@@ -174,7 +174,9 @@ const STR = {
     help: `<p><b>Goal:</b> be the last tank standing. Players take turns: drive a little, aim and fire one shot. Win rounds to win the match.</p>
       <h3>Controls</h3><ul>
       <li><b>Keyboard:</b> ← → aim · ↑ ↓ (or W S) power · A D drive · Q E or 1–6 weapon · Space fire · P pause · M sound</li>
-      <li><b>Touch / mouse:</b> drag on the battlefield to aim: the direction sets the angle and the distance from your tank sets the power. The buttons at the bottom fine-tune, drive, change weapon and fire. Mouse wheel: power.</li>
+      <li><b>Touch:</b> start a drag anywhere on the screen outside the buttons. The drag direction sets the angle and the distance from your first touch sets the power.</li>
+      <li><b>Mouse:</b> aim by clicking or dragging on the battlefield. Power depends on the distance from your tank. The mouse wheel adjusts power.</li>
+      <li><b>On-screen buttons:</b> fine-tune your aim, drive, change weapons and fire.</li>
       <li><b>Gamepad:</b> left stick aim and power · D-pad drive · LB RB weapon · A fire · Start pause</li></ul>
       <h3>Tips</h3><ul><li>Wind pushes every shot: watch the gauge and the clouds.</li>
       <li>While aiming, the dotted line shows how your shot starts its arc. Your last shot leaves a faint trail: correct from it.</li>
@@ -216,7 +218,9 @@ const STR = {
     help: `<p><b>Objetivo:</b> ser el último tanque en pie. Se juega por turnos: muévete un poco, apunta y dispara una vez. Gana rondas para ganar la partida.</p>
       <h3>Controles</h3><ul>
       <li><b>Teclado:</b> ← → apuntar · ↑ ↓ (o W S) potencia · A D mover · Q E o 1–6 arma · Espacio disparar · P pausa · M sonido</li>
-      <li><b>Táctil / ratón:</b> arrastra sobre el campo para apuntar: la dirección marca el ángulo y la distancia a tu tanque, la potencia. Los botones de abajo sirven para afinar, moverte, cambiar de arma y disparar. Rueda del ratón: potencia.</li>
+      <li><b>Táctil:</b> empieza a arrastrar en cualquier parte de la pantalla fuera de los botones. La dirección del gesto marca el ángulo y la distancia desde el primer toque determina la potencia.</li>
+      <li><b>Ratón:</b> apunta haciendo clic o arrastrando sobre el campo. La potencia depende de la distancia a tu tanque. La rueda ajusta la potencia.</li>
+      <li><b>Botones en pantalla:</b> afina la puntería, muévete, cambia de arma y dispara.</li>
       <li><b>Mando:</b> stick izquierdo apuntar y potencia · cruceta mover · LB RB arma · A disparar · Start pausa</li></ul>
       <h3>Consejos</h3><ul><li>El viento empuja todos los disparos: mira el indicador y las nubes.</li>
       <li>Al apuntar, la línea de puntos muestra el comienzo de la curva del disparo. Tu último disparo deja un rastro tenue: corrige a partir de él.</li>
@@ -766,6 +770,7 @@ function startRound() {
   E(['b', 'round', G.round, th]);
 }
 function beginTurn(i) {
+  aimDrag = null;
   G.turn = i;
   const t = G.players[i];
   G.phase = 'aim'; G.timer = G.turnTime; t.fuel = FUEL_MAX; t.ai = null; t.netMove = 0;
@@ -1550,11 +1555,11 @@ function drawNotice() {
 const hold = { aL: 0, aR: 0, pU: 0, pD: 0, mL: 0, mR: 0 }, holdT = { aL: 0, aR: 0, pU: 0, pD: 0 };
 const KEY_ACT = { ArrowLeft: 'aL', ArrowRight: 'aR', ArrowUp: 'pU', ArrowDown: 'pD', KeyW: 'pU', KeyS: 'pD', KeyA: 'mL', KeyD: 'mR' };
 const keyHeld = new Set(), ptrAct = new Map();
-let aimPtr = -1;
+let aimDrag = null;
 function resetInputs() {
   for (const k in hold) hold[k] = 0;
   for (const k in holdT) holdT[k] = 0;
-  keyHeld.clear(); ptrAct.clear(); aimPtr = -1;
+  keyHeld.clear(); ptrAct.clear(); aimDrag = null;
   if (NET.role === 'guest') NET.move = 0;
 }
 function canControl() {
@@ -1622,17 +1627,19 @@ function doFire() {
   }
   fire(cur());
 }
-function aimAt(X, Y) {
-  const a = ctlAim(), t = cur();
+function aimAt(X, Y, touchOrigin) {
+  const a = ctlAim();
   if (!a) return;
-  const px = t.x, py = t.y - 11;
-  const dx = (X - V.ox) / V.s - px, dy = py - (Y - V.oy) / V.s;
+  const dx = X - (touchOrigin ? touchOrigin.x : wx(cur().x));
+  const dy = (touchOrigin ? touchOrigin.y : wy(cur().y - 11)) - Y;
+  const distance = Math.hypot(dx, dy);
+  if (touchOrigin && distance < 4 * dpr) return;
   let ang = Math.atan2(dy, dx) / RAD;
   if (ang < 0) ang = dx >= 0 ? 0 : 180;
   a.angle = Math.round(clamp(ang, 0, 180));
   // la potencia depende de la distancia en pantalla: igual de cómodo en móvil y en escritorio
   const full = Math.min(innerWidth, innerHeight) * 0.45 * dpr;
-  a.power = Math.round(clamp(Math.hypot(dx, dy) * V.s / full * 100, 1, 100));
+  a.power = Math.round(clamp(distance / full * 100, 1, 100));
 }
 function barHit(X, Y) {
   if (inR(UI.driveL, X, Y)) return 'mL';
@@ -1661,16 +1668,22 @@ canvas.addEventListener('pointerdown', e => {
     else { ptrAct.set(e.pointerId, act); press(act); }
     return;
   }
-  if (Y < UI.barTop) { aimPtr = e.pointerId; aimAt(X, Y); }
+  const isTouch = e.pointerType === 'touch';
+  if (aimDrag || (!isTouch && Y >= UI.barTop)) return;
+  aimDrag = { id: e.pointerId, origin: isTouch ? { x: X, y: Y } : null };
+  if (!isTouch) aimAt(X, Y);
 });
-canvas.addEventListener('pointermove', e => { if (e.pointerId === aimPtr && canControl()) aimAt(e.clientX * dpr, e.clientY * dpr); });
+canvas.addEventListener('pointermove', e => {
+  if (e.pointerId === aimDrag?.id) aimAt(e.clientX * dpr, e.clientY * dpr, aimDrag.origin);
+});
 function pointerEnd(e) {
   const act = ptrAct.get(e.pointerId);
   if (act) { release(act); ptrAct.delete(e.pointerId); }
-  if (e.pointerId === aimPtr) aimPtr = -1;
+  if (e.pointerId === aimDrag?.id) aimDrag = null;
 }
 canvas.addEventListener('pointerup', pointerEnd);
 canvas.addEventListener('pointercancel', pointerEnd);
+canvas.addEventListener('lostpointercapture', pointerEnd);
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 canvas.addEventListener('wheel', e => {
   if (!canControl()) return;
@@ -2262,6 +2275,7 @@ function applySnapshot(s) {
   if (s.mk) decodeMask(s.mk, false);
   if (G.phase === 'aim' && G.turn === NET.mySlot) {
     if (NET.aimSeq !== s.sq) {
+      aimDrag = null;
       const p = G.players[NET.mySlot];
       NET.aim = { angle: p.angle, power: p.power, weapon: p.weapon };
       NET.aimSeq = s.sq; NET.fired = false; NET.move = 0; NET.lastIn = '';
