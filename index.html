@@ -6,7 +6,7 @@
 .cab:nth-child(3){--lamp:#a1e681;--shell:#36503b;--ink:#192e24}
 .cab:nth-child(4){--lamp:#f196df;--shell:#65355e;--ink:#301a32}
 .cab:nth-child(5){--lamp:#b9abff;--shell:#494269;--ink:#23213d}
-</style></head><body><header><span><span class="orbit" aria-hidden="true">◉</span> BRIGHT ORBIT GAMES</span><a href="#games">Games</a></header><main><div class="floor"></div><div class="sign"><h1>The Arcade</h1><p>SELECT YOUR MACHINE</p></div><div id="games" class="hall">
+</style></head><body id="games"><header><span><span class="orbit" aria-hidden="true">◉</span> BRIGHT ORBIT GAMES</span><a href="#games">Games</a></header><main><div class="floor"></div><div class="sign"><h1>The Arcade</h1><p>SELECT YOUR MACHINE</p></div><div class="hall">
 <a class="cab" href="https://brightorbitgames.com/steel-bastion/"><div class="marquee"><h2>Steel Bastion</h2></div><div class="glass"><canvas id="tank" width="192" height="118" aria-hidden="true"></canvas></div><div class="deck" aria-hidden="true"><b></b><i></i><i></i></div><div class="panel"><p>Break through walls and defend the reactor. Roll out solo or team up online.</p><span class="play">▶ Play Steel Bastion</span></div></a>
 <a class="cab" href="https://brightorbitgames.com/comet-trail/"><div class="marquee"><h2>Comet Trail</h2></div><div class="glass"><canvas id="space" width="192" height="118" aria-hidden="true"></canvas></div><div class="deck" aria-hidden="true"><b></b><i></i><i></i></div><div class="panel"><p>Steer through stardust and collect golden stars. Keep clear of your own trail.</p><span class="play">▶ Play Comet Trail</span></div></a>
 <a class="cab" href="https://brightorbitgames.com/crater/"><div class="marquee"><h2>Crater</h2></div><div class="glass"><svg class="card-art" viewBox="0 0 320 170" role="img" aria-label="Two artillery tanks on rolling hills, a shell arcing between them toward a crater">
@@ -115,7 +115,7 @@
                         <rect x="-6" y="-6" width="3" height="2" fill="#B8F09A" />
                     </g>
                 </svg></div><div class="deck" aria-hidden="true"><b></b><i></i><i></i></div><div class="panel"><p>Enter the world of Aethra, a pixel-art fantasy MMORPG.</p><span class="play">▶ Play Aethra Online</span></div></a>
-</div></main><footer><span>Coming soon to Google Play</span><a href="https://brightorbitgames.com/maze-escape-privacy.html">Maze Escape Privacy Policy</a></footer>
+</div></main>
 <script>
 const tank=document.querySelector('#tank').getContext('2d'),space=document.querySelector('#space').getContext('2d');
 function rect(ctx,x,y,w,h,color){ctx.fillStyle=color;ctx.fillRect(x,y,w,h)}
