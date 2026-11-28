@@ -120,8 +120,31 @@
   td.n { text-align: left; font-weight: 650; }
   td.n .sw { display: inline-block; vertical-align: -.15rem; margin-right: .45rem; width: .9rem; height: .9rem; }
 </style>
+<style>
+  .arcade-back {
+    position: fixed;
+    top: max(6px, env(safe-area-inset-top));
+    left: max(6px, env(safe-area-inset-left));
+    z-index: 100;
+    display: grid;
+    place-items: center;
+    box-sizing: border-box;
+    width: 44px;
+    height: 44px;
+    border: 1px solid #ffffff45;
+    border-radius: 8px;
+    background: #0a0d12;
+    color: #fff;
+    font: 700 24px/1 system-ui, sans-serif;
+    text-decoration: none;
+    touch-action: manipulation;
+  }
+  .arcade-back:hover { background: #252a33; }
+  .arcade-back:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+</style>
 </head>
 <body>
+<a class="arcade-back" href="https://brightorbitgames.com/" aria-label="Volver a Bright Orbit Games" title="Volver a Bright Orbit Games"><span aria-hidden="true">&#8592;</span></a>
 <canvas id="c" tabindex="0" aria-label="Enjambre"></canvas>
 <div id="ov">
   <section class="panel" id="s-title">
@@ -1837,7 +1860,7 @@ function layoutUI() {
   UI.k = k;
   const m = 10 * k;
   UI.m = m;
-  UI.pause = { x: m, y: m, w: 40 * k, h: 40 * k };
+  UI.pause = { x: m + 50 * dpr, y: m, w: 40 * k, h: 40 * k };
   UI.narrow = cw / k < 720;
   UI.joyR = clamp(Math.min(cw, ch) * 0.14, 44 * dpr, 76 * dpr);
   UI.lx = m + UI.joyR * 1.5; UI.ly = ch - m - UI.joyR * 1.45;

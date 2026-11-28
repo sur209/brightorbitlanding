@@ -32,8 +32,31 @@
   .lb-box button.lb-secondary { border-color: #FF7A59; background: rgba(255, 122, 89, .12); }
   .lb-box button:focus-visible, #lb-input:focus-visible { outline: 3px solid #F0B03A; outline-offset: 3px; }
 </style>
+<style>
+  .arcade-back {
+    position: fixed;
+    top: max(6px, env(safe-area-inset-top));
+    left: max(6px, env(safe-area-inset-left));
+    z-index: 100;
+    display: grid;
+    place-items: center;
+    box-sizing: border-box;
+    width: 44px;
+    height: 44px;
+    border: 1px solid #ffffff45;
+    border-radius: 8px;
+    background: #0a0d12;
+    color: #fff;
+    font: 700 24px/1 system-ui, sans-serif;
+    text-decoration: none;
+    touch-action: manipulation;
+  }
+  .arcade-back:hover { background: #252a33; }
+  .arcade-back:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+</style>
 </head>
 <body>
+<a class="arcade-back" href="https://brightorbitgames.com/" aria-label="Back to Bright Orbit Games" title="Back to Bright Orbit Games"><span aria-hidden="true">&#8592;</span></a>
 <canvas id="c" tabindex="0" aria-label="Steel Bastion: tank game"></canvas>
 <script>
 'use strict';
@@ -909,10 +932,10 @@ function computeLayout(w, h, density) {
     L.fireR = L.joyR * 0.9;
     L.fireX = rcx(L.right); L.fireY = h - L.fireR - L.font * 1.2;
     const ps = Math.max(L.font * 2.2, 42 * density), m = L.font * 0.7;
-    setR(L.pauseRect, m, m, m + ps, m + ps);
+    setR(L.pauseRect, m + 50 * density, m, m + 50 * density + ps, m + ps);
   } else {
     L.font = Math.min(Math.max(w * 0.04, 10 * density), 26 * density);
-    const top = L.font * 3.4;
+    const hudOffset = 50 * density, top = L.font * 3.4 + hudOffset;
     L.mapSize = Math.min(w * 0.98, h * 0.6);
     L.mapX = (w - L.mapSize) / 2; L.mapY = top;
     setR(L.left, 0, 0, w / 2, top); setR(L.right, w / 2, 0, w, top);
@@ -921,7 +944,7 @@ function computeLayout(w, h, density) {
     L.joyX = w * 0.25; L.joyY = below + rem / 2;
     L.fireR = L.joyR * 0.9; L.fireX = w * 0.75; L.fireY = L.joyY;
     const ps = Math.max(L.font * 2, 42 * density);
-    setR(L.pauseRect, L.font * 0.5, L.font * 0.6, L.font * 0.5 + ps, L.font * 0.6 + ps);
+    setR(L.pauseRect, L.font * 0.5, L.font * 0.6 + hudOffset, L.font * 0.5 + ps, L.font * 0.6 + hudOffset + ps);
   }
   L.scale = L.mapSize / 256;
   const bh = Math.max(L.font * 2.6, 48 * density), bw = Math.min(w * 0.86, Math.max(L.font * 10, bh * 5)), cx = w / 2, cy = h / 2;

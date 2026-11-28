@@ -67,8 +67,31 @@
   .notice { color: #FFC48A; min-height: 1.2em; margin: 1rem 0 0; line-height: 1.4; }
   .foot { color: #6F7B8F; font-size: .78rem; margin: 1rem 0 0; }
 </style>
+<style>
+  .arcade-back {
+    position: fixed;
+    top: max(6px, env(safe-area-inset-top));
+    left: max(6px, env(safe-area-inset-left));
+    z-index: 100;
+    display: grid;
+    place-items: center;
+    box-sizing: border-box;
+    width: 44px;
+    height: 44px;
+    border: 1px solid #ffffff45;
+    border-radius: 8px;
+    background: #0a0d12;
+    color: #fff;
+    font: 700 24px/1 system-ui, sans-serif;
+    text-decoration: none;
+    touch-action: manipulation;
+  }
+  .arcade-back:hover { background: #252a33; }
+  .arcade-back:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+</style>
 </head>
 <body>
+<a class="arcade-back" href="https://brightorbitgames.com/" aria-label="Volver a Bright Orbit Games" title="Volver a Bright Orbit Games"><span aria-hidden="true">&#8592;</span></a>
 <canvas id="c" tabindex="0" aria-label="Crater"></canvas>
 <div id="ov">
   <section class="panel" id="s-title">
@@ -1441,10 +1464,11 @@ function drawHud() {
     const nameW = ctx.measureText(t.name).width;
     ctx.font = `600 ${13 * k}px ${FONT}`;
     const stW = status ? ctx.measureText(status).width + 12 * k : 0;
-    panel(m, m, 44 * k + nameW + stW, hh);
-    ctx.fillStyle = t.color; circle(m + 20 * k, m + hh / 2, 8 * k); ctx.fill();
-    text(t.name, m + 34 * k, m + hh / 2, 15 * k, '#EEF2F8', 'left', 700);
-    if (status) text(status, m + 34 * k + nameW + 10 * k, m + hh / 2, 13 * k, t.ctrl !== 'cpu' && G.timer <= 5.5 ? '#FF6B5A' : '#AEB8C8', 'left', 650);
+    const playerHudY = m + 50 * dpr;
+    panel(m, playerHudY, 44 * k + nameW + stW, hh);
+    ctx.fillStyle = t.color; circle(m + 20 * k, playerHudY + hh / 2, 8 * k); ctx.fill();
+    text(t.name, m + 34 * k, playerHudY + hh / 2, 15 * k, '#EEF2F8', 'left', 700);
+    if (status) text(status, m + 34 * k + nameW + 10 * k, playerHudY + hh / 2, 13 * k, t.ctrl !== 'cpu' && G.timer <= 5.5 ? '#FF6B5A' : '#AEB8C8', 'left', 650);
   }
   // viento
   const th = T.theme, ww = 150 * k;

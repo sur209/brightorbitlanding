@@ -11,8 +11,31 @@
   body { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
   canvas { display: block; position: fixed; inset: 0; width: 100%; height: 100%; outline: none; }
 </style>
+<style>
+  .arcade-back {
+    position: fixed;
+    top: max(6px, env(safe-area-inset-top));
+    left: max(6px, env(safe-area-inset-left));
+    z-index: 100;
+    display: grid;
+    place-items: center;
+    box-sizing: border-box;
+    width: 44px;
+    height: 44px;
+    border: 1px solid #ffffff45;
+    border-radius: 8px;
+    background: #0a0d12;
+    color: #fff;
+    font: 700 24px/1 system-ui, sans-serif;
+    text-decoration: none;
+    touch-action: manipulation;
+  }
+  .arcade-back:hover { background: #252a33; }
+  .arcade-back:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+</style>
 </head>
 <body>
+<a class="arcade-back" href="https://brightorbitgames.com/" aria-label="Back to Bright Orbit Games" title="Back to Bright Orbit Games"><span aria-hidden="true">&#8592;</span></a>
 <canvas id="c" tabindex="0" aria-label="Comet Trail: snake game"></canvas>
 <script>
 'use strict';
@@ -225,7 +248,7 @@ function resize() {
   L.by = Math.floor(hud + (H - hud - L.size) / 2);
   L.hudY = Math.min(hud * 0.62, L.by - L.font * 0.9);
   const ps = L.font * 2;
-  L.pause = { x: L.bx, y: L.hudY - ps * 0.68, w: ps, h: ps };
+  L.pause = { x: Math.max(L.bx, 54 * dpr), y: L.hudY - ps * 0.68, w: ps, h: ps };
   sky.length = 0;
   const count = Math.floor((W * H) / (9000 * dpr * dpr)) + 40;
   for (let i = 0; i < count; i++) sky.push({ x: Math.random() * W, y: Math.random() * H, r: (Math.random() * 1.2 + 0.3) * dpr, p: Math.random() * 6.28, s: 0.5 + Math.random() * 1.5 });
