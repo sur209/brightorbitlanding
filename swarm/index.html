@@ -235,7 +235,7 @@ const STR = {
     u_shield: 'Shield', d_shield: 'Blocks 1 hit. Recharges.', u_drone: 'Drone', d_drone: 'A drone flies with you and shoots.',
     u_crit: 'Critical Hit', d_crit: 'Some bullets do double damage.', u_regen: 'Regen', d_regen: 'Heal slowly over time.',
     u_burn: 'Fire Dash', d_burn: 'Your dash burns enemies.', u_heal: 'Full Heal', d_heal: 'Full health and +250 points.',
-    help: `<p><b>Goal:</b> survive as many waves as you can. Shoot the swarm, collect the gems it drops and pick one upgrade from the tree after every wave. Every fifth wave the <b>Hive Mother</b> shows up.</p>
+    help: `<p><b>Goal:</b> survive as many waves as you can. Shoot the swarm, collect the gems it drops and pick one upgrade from the tree after every wave, starting once you beat the first boss. Every fifth wave the <b>Hive Mother</b> shows up.</p>
       <h3>Controls</h3><ul>
       <li><b>Keyboard and mouse:</b> WASD move · aim with the mouse · hold click to fire · Space or right click: dash · arrow keys also aim and fire · P / Esc pause · M sound</li>
       <li><b>Touch:</b> left side of the screen: move stick · right side: aim stick (fires automatically) · DASH button</li>
@@ -299,7 +299,7 @@ const STR = {
     u_shield: 'Escudo', d_shield: 'Bloquea 1 golpe. Se recarga.', u_drone: 'Dron', d_drone: 'Un dron te acompaña y dispara.',
     u_crit: 'Crítico', d_crit: 'Algunas balas hacen doble daño.', u_regen: 'Regeneración', d_regen: 'Recuperas vida poco a poco.',
     u_burn: 'Dash de fuego', d_burn: 'Tu dash quema a los enemigos.', u_heal: 'Curación total', d_heal: 'Vida al máximo y +250 puntos.',
-    help: `<p><b>Objetivo:</b> sobrevive todas las oleadas que puedas. Dispara al enjambre, recoge las gemas que suelta y elige una mejora del árbol al final de cada oleada. Cada cinco oleadas aparece la <b>Madre Colmena</b>.</p>
+    help: `<p><b>Objetivo:</b> sobrevive todas las oleadas que puedas. Dispara al enjambre, recoge las gemas que suelta y elige una mejora del árbol al final de cada oleada, a partir de vencer al primer jefe. Cada cinco oleadas aparece la <b>Madre Colmena</b>.</p>
       <h3>Controles</h3><ul>
       <li><b>Teclado y ratón:</b> WASD moverse · apunta con el ratón · mantén el clic para disparar · Espacio o clic derecho: dash · las flechas también apuntan y disparan · P / Esc pausa · M sonido</li>
       <li><b>Táctil:</b> lado izquierdo de la pantalla: joystick de movimiento · lado derecho: joystick de apuntado (dispara solo) · botón DASH</li>
@@ -1751,7 +1751,9 @@ function makeOffer(p) {
   const c = UPS.filter(u => upAvail(p.up, u.id)).map(u => u.id);
   return c.length ? c : ['heal'];
 }
+const FIRST_UP_WAVE = 5;   // las mejoras empiezan tras vencer al primer jefe
 function startUpgrade() {
+  if (G.wave < FIRST_UP_WAVE) { nextWave(); return; }
   G.phase = 'upgrade'; G.phT = 30;
   for (const p of G.players) {
     if (!p.connected) continue;
@@ -2801,7 +2803,7 @@ function startSolo() {
   const m = /^#(?:oleada|wave)-(\d{1,2})$/.exec(location.hash);
   if (m && +m[1] > 1) {
     const p = G.players[0], w = Math.min(60, +m[1]);
-    for (let i = 0; i < w - 1; i++) applyUpgrade(p, pick(makeOffer(p)));
+    for (let i = 0; i < w - FIRST_UP_WAVE; i++) applyUpgrade(p, pick(makeOffer(p)));
     p.lvl = 1 + Math.floor(w * 0.7); calcStats(p);
     p.hp = p.maxHp; p.shield = p.shieldMax;
     G.practice = true; G.wave = w - 1; nextWave();
