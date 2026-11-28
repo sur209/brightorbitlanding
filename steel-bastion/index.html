@@ -67,6 +67,17 @@
 
 const UP = 0, RIGHT = 1, DOWN = 2, LEFT = 3;
 const DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0];
+/* Dirección continua en cuartos de vuelta: 0 arriba, 1 derecha, 2 abajo, 3 izquierda (0.5 = arriba-derecha...). */
+const dirX = d => Number.isInteger(d) ? DX[d] : Math.sin(d * Math.PI / 2);
+const dirY = d => Number.isInteger(d) ? DY[d] : -Math.cos(d * Math.PI / 2);
+const dir4 = d => Math.round(d) % 4;
+function vecToDir(x, y) {
+  let a = Math.atan2(x, -y) / (Math.PI / 2);
+  if (a < 0) a += 4;
+  a = Math.round(a * 16) / 16;
+  if (Math.abs(a - Math.round(a)) < 0.08) a = Math.round(a); // facilita ir recto
+  return a % 4;
+}
 const T_EMPTY = 0, T_BRICK = 1, T_STEEL = 2, T_WATER = 3, T_FOREST = 4;
 const N = 64;
 
@@ -360,7 +371,7 @@ const input = {
     if (d > drag) { const k = (d - drag) / d; this.joyOX += dx * k; this.joyOY += dy * k; dx = x - this.joyOX; dy = y - this.joyOY; d = Math.hypot(dx, dy); }
     const f = d > radius ? radius / d : 1;
     this.joyKX = this.joyOX + dx * f; this.joyKY = this.joyOY + dy * f;
-    this.touchDir = d < radius * 0.22 ? -1 : Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? RIGHT : LEFT) : (dy > 0 ? DOWN : UP);
+    this.touchDir = d < radius * 0.22 ? -1 : vecToDir(dx, dy);
   },
   joyRelease() { this.joyActive = false; this.touchDir = -1; },
   releaseAll() { this.keyDir = this.padDir = this.touchDir = -1; this.fireKey = this.firePad = this.fireTouch = false; this.joyActive = false; },
@@ -529,7 +540,7 @@ function updatePlayer(p, dt) {
   if (p.stun > 0) { p.stun -= dt; return; }
   if (G.state === S.OVER) return;
   const d = ctrlDir(p);
-  if (d >= 0) moveTank(p, d, p.speed * dt);
+  if (d >= 0) movePlayer(p, d, p.speed * dt);
   p.cooldown -= dt;
   if (ctrlFire(p) && p.cooldown <= 0 && fire(p)) p.cooldown = p.rank >= 2 ? 0.16 : 0.26;
 }
@@ -652,6 +663,43 @@ function moveTank(t, d, dist) {
   t.tread += moved;
   return false;
 }
+/* Avanza por un eje hasta donde se pueda; devuelve lo recorrido. */
+function slideTank(t, sx, sy, dist) {
+  if (dist <= 0) return 0;
+  const fx = t.x + sx * dist, fy = t.y + sy * dist;
+  if (!blocked(t, fx, fy)) { t.x = fx; t.y = fy; return dist; }
+  let moved = 0;
+  const step = 0.25;
+  while (moved + step <= dist) {
+    const tx = t.x + sx * step, ty = t.y + sy * step;
+    if (blocked(t, tx, ty)) break;
+    t.x = tx; t.y = ty; moved += step;
+  }
+  return moved;
+}
+/* Jugador: movimiento libre en cualquier dirección, deslizándose contra los obstáculos. */
+function movePlayer(t, d, dist) {
+  t.dir = d;
+  const vx = dirX(d), vy = dirY(d), nx = t.x + vx * dist, ny = t.y + vy * dist;
+  if (!blocked(t, nx, ny)) { t.x = nx; t.y = ny; t.tread += dist; return true; }
+  let moved = slideTank(t, Math.sign(vx), 0, Math.abs(vx) * dist) + slideTank(t, 0, Math.sign(vy), Math.abs(vy) * dist);
+  // Ayuda en esquinas: si va casi recto y choca, lo acomoda hacia el hueco más cercano.
+  if (moved < dist * 0.5 && Math.min(Math.abs(vx), Math.abs(vy)) < 0.5) {
+    const vert = Math.abs(vy) > Math.abs(vx), cur = vert ? t.x : t.y, base = Math.round(cur / 4) * 4;
+    const opts = [];
+    for (let c = base - 8; c <= base + 8; c += 4) if (c !== cur && Math.abs(c - cur) <= 8) opts.push(c);
+    opts.sort((a, b) => Math.abs(a - cur) - Math.abs(b - cur));
+    for (const c of opts) {
+      const free = vert ? !blocked(t, c, t.y + Math.sign(vy) * 2) : !blocked(t, t.x + Math.sign(vx) * 2, c);
+      if (!free) continue;
+      const off = c - cur;
+      moved += vert ? slideTank(t, Math.sign(off), 0, Math.min(Math.abs(off), dist)) : slideTank(t, 0, Math.sign(off), Math.min(Math.abs(off), dist));
+      break;
+    }
+  }
+  t.tread += moved;
+  return false;
+}
 
 function fire(t) {
   const maxB = t.isPlayer && t.rank >= 2 ? 2 : 1;
@@ -659,7 +707,7 @@ function fire(t) {
   for (const b of G.bullets) if (b.alive && b.owner === t) n++;
   if (n >= maxB) return false;
   const spd = t.isPlayer ? (t.rank >= 1 ? 280 : 200) : t.kind.bullet;
-  const bx = t.x + 8 + DX[t.dir] * 7, by = t.y + 8 + DY[t.dir] * 7;
+  const bx = t.x + 8 + dirX(t.dir) * 7, by = t.y + 8 + dirY(t.dir) * 7;
   G.bullets.push({ x: bx, y: by, dir: t.dir, speed: spd, owner: t, power: t.isPlayer && t.rank >= 3, alive: true });
   muzzle(bx, by);
   if (t.isPlayer) sfx.play(SFX.SHOOT); else sfx.play(SFX.SHOOT, 0.22, 0.75);
@@ -670,10 +718,11 @@ function updateBullets(dt) {
   for (let i = 0; i < list.length; i++) {
     const b = list[i];
     let remaining = b.speed * dt;
+    const vx = dirX(b.dir), vy = dirY(b.dir);
     while (remaining > 0 && b.alive) {
       const s = Math.min(2, remaining);
       remaining -= s;
-      b.x += DX[b.dir] * s; b.y += DY[b.dir] * s;
+      b.x += vx * s; b.y += vy * s;
       collideBullet(b);
     }
   }
@@ -721,7 +770,7 @@ function collideBullet(b) {
 }
 function impact(b) {
   let left, top, right, bottom;
-  switch (b.dir) {
+  switch (dir4(b.dir)) {
     case UP: left = b.x - 8; right = b.x + 8; top = b.y - 7; bottom = b.y; break;
     case DOWN: left = b.x - 8; right = b.x + 8; top = b.y; bottom = b.y + 7; break;
     case LEFT: left = b.x - 7; right = b.x; top = b.y - 8; bottom = b.y + 8; break;
@@ -1228,7 +1277,7 @@ function drawTank(cx, cy, dir, body, style, tread, rank) {
 function drawBullet(b) {
   const col = !b.owner.isPlayer ? 0xFF7A59 : b.power ? 0xFFE066 : 0xFFF3C4;
   ctx.strokeStyle = css(col, 0.43); ctx.lineWidth = 1.4; ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x - DX[b.dir] * 5, b.y - DY[b.dir] * 5); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x - dirX(b.dir) * 5, b.y - dirY(b.dir) * 5); ctx.stroke();
   fillC(col, 0.27); circle(ctx, b.x, b.y, 2.8); ctx.fill();
   fillC(col); circle(ctx, b.x, b.y, 1.5); ctx.fill();
 }
@@ -1400,7 +1449,7 @@ function drawControls() {
     ctx.lineTo(ax - DX[i] * s + DY[i] * s, ay - DY[i] * s + DX[i] * s);
     ctx.lineTo(ax - DX[i] * s - DY[i] * s, ay - DY[i] * s - DX[i] * s);
     ctx.closePath();
-    if (i === input.touchDir) fillC(PLAYER, 0.8); else fillC(0xFFFFFF, 0.27);
+    if (input.touchDir >= 0 && dir4(input.touchDir) === i) fillC(PLAYER, 0.8); else fillC(0xFFFFFF, 0.27);
     ctx.fill();
   }
   if (input.joyActive) fillC(PLAYER, 0.53); else fillC(0xFFFFFF, 0.27);
@@ -1710,7 +1759,7 @@ function onNetMessage(m) {
   if (!m || typeof m !== 'object') return;
   switch (m.t) {
     case 's': if (NET.role === 'guest') applySnapshot(m); break;
-    case 'i': if (NET.role === 'host') { remoteInput.d = m.d | 0; remoteInput.f = !!m.f; } break;
+    case 'i': if (NET.role === 'host') { remoteInput.d = typeof m.d === 'number' && m.d >= 0 && m.d < 4 ? m.d : -1; remoteInput.f = !!m.f; } break;
     case 'p': if (NET.role === 'host') { if (G.paused) resumeGame(); else pauseGame(); } break;
     case 'c': if (NET.role === 'host') hostConfirm(); break;
     case 'q': onNetClosed('Your friend left the game.'); break;
@@ -1887,6 +1936,13 @@ const lobbyIsOpen = () => !!(lobby.el && !lobby.el.hidden);
 /* ============================================================ entrada */
 let joyId = -1, fireId = -1;
 let held = [];
+/* Combina las teclas pulsadas (p. ej. arriba + derecha = diagonal). */
+function heldDir() {
+  if (!held.length) return -1;
+  let x = 0, y = 0;
+  for (const d of held) { x += DX[d]; y += DY[d]; }
+  return x || y ? vecToDir(x, y) : held[held.length - 1];
+}
 function resetInputs() { held = []; joyId = -1; fireId = -1; input.releaseAll(); }
 
 const isMenuState = () => G.state === S.TITLE || G.state === S.TALLY || G.state === S.OVER;
@@ -1972,7 +2028,7 @@ window.addEventListener('keydown', e => {
     else if (e.code === 'KeyM' && !e.repeat) sfx.toggleMute();
     return;
   }
-  if (d !== undefined) { if (!held.includes(d)) held.push(d); input.keyDir = held[held.length - 1]; return; }
+  if (d !== undefined) { if (!held.includes(d)) held.push(d); input.keyDir = heldDir(); return; }
   if (FIRE_KEYS.has(e.code)) {
     input.fireKey = true;
     if (!e.repeat && (G.paused || isMenuState())) confirm();
@@ -1984,7 +2040,7 @@ window.addEventListener('keydown', e => {
 });
 window.addEventListener('keyup', e => {
   const d = KEYDIR[e.code];
-  if (d !== undefined) { held = held.filter(v => v !== d); input.keyDir = held.length ? held[held.length - 1] : -1; return; }
+  if (d !== undefined) { held = held.filter(v => v !== d); input.keyDir = heldDir(); return; }
   if (FIRE_KEYS.has(e.code)) input.fireKey = false;
 });
 window.addEventListener('blur', () => { if (!NET.role) autoPause(); else resetInputs(); });
@@ -2010,7 +2066,7 @@ function pollPad() {
     if (vy && vy !== padY) titleSel = (titleSel + vy + TITLE_OPTS.length) % TITLE_OPTS.length;
     padY = vy;
     input.padDir = -1;
-  } else input.padDir = dir;
+  } else input.padDir = dir < 0 ? -1 : vecToDir(x, y);
   const a = btn(0) || btn(2) || btn(5) || btn(7);
   input.firePad = a && G.state !== S.TITLE;
   if (a && !padA) { sfx.unlock(); touchMode = false; if (G.paused || isMenuState()) confirm(); }
