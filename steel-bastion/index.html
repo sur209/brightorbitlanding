@@ -540,7 +540,7 @@ function updatePlayer(p, dt) {
   if (p.stun > 0) { p.stun -= dt; return; }
   if (G.state === S.OVER) return;
   const d = ctrlDir(p);
-  if (d >= 0) movePlayer(p, d, p.speed * dt);
+  if (d >= 0) moveTank(p, d, p.speed * dt);
   p.cooldown -= dt;
   if (ctrlFire(p) && p.cooldown <= 0 && fire(p)) p.cooldown = p.rank >= 2 ? 0.16 : 0.26;
 }
@@ -597,13 +597,8 @@ function updateEnemies(dt) {
   }
 }
 function aligned(e, tx, ty) {
-  const cx = e.x + 8, cy = e.y + 8;
-  switch (e.dir) {
-    case UP: return Math.abs(tx - cx) < 6 && ty < cy;
-    case DOWN: return Math.abs(tx - cx) < 6 && ty > cy;
-    case LEFT: return Math.abs(ty - cy) < 6 && tx < cx;
-    default: return Math.abs(ty - cy) < 6 && tx > cx;
-  }
+  const dx = tx - (e.x + 8), dy = ty - (e.y + 8), vx = dirX(e.dir), vy = dirY(e.dir);
+  return dx * vx + dy * vy > 0 && Math.abs(dx * vy - dy * vx) < 6; // delante y a menos de 6 de la línea de tiro
 }
 const lineOfFire = e => G.players.some(p => p.inGame && isActive(p) && aligned(e, p.x + 8, p.y + 8)) || (G.coreAlive && aligned(e, CORE_X + 8, CORE_Y + 8));
 function chooseDir(e, blocked) {
@@ -614,12 +609,12 @@ function chooseDir(e, blocked) {
     const useCore = !target || Math.random() < coreBias();
     const tx = useCore ? CORE_X + 8 : target.x + 8, ty = useCore ? CORE_Y + 8 : target.y + 8;
     const dx = tx - (e.x + 8), dy = ty - (e.y + 8);
-    const horizontal = (Math.abs(dx) > Math.abs(dy)) !== (Math.random() < 0.3);
-    d = horizontal ? (dx > 0 ? RIGHT : LEFT) : (dy > 0 ? DOWN : UP);
-  } else if (r < 0.65) d = DOWN;
-  else d = Math.floor(Math.random() * 4);
-  if (blocked && d === e.dir) d = (d + 1 + Math.floor(Math.random() * 3)) % 4;
-  turn(e, d);
+    d = (Math.round(vecToDir(dx, dy) * 2) / 2) % 4; // hacia el objetivo, en 8 direcciones
+    if (Math.random() < 0.3) d = (d + (Math.random() < 0.5 ? 0.5 : 3.5)) % 4;
+  } else if (r < 0.65) d = [DOWN, 1.5, 2.5][Math.floor(Math.random() * 3)];
+  else d = Math.floor(Math.random() * 8) / 2;
+  if (blocked && d === e.dir) d = (d + (1 + Math.floor(Math.random() * 7)) / 2) % 4;
+  e.dir = d;
   e.aiTurn = rand(0.8, 2.8);
 }
 
@@ -641,28 +636,6 @@ function blocked(t, x, y) {
   for (const e of G.enemies) if (tankBlocks(t, e, x, y)) return true;
   return false;
 }
-function turn(t, d) {
-  if (d === t.dir) return;
-  if ((d & 1) !== (t.dir & 1)) {
-    if (d === UP || d === DOWN) { const sx = Math.round(t.x / 8) * 8; if (sx !== t.x && !blocked(t, sx, t.y)) t.x = sx; }
-    else { const sy = Math.round(t.y / 8) * 8; if (sy !== t.y && !blocked(t, t.x, sy)) t.y = sy; }
-  }
-  t.dir = d;
-}
-function moveTank(t, d, dist) {
-  turn(t, d);
-  const dx = DX[d], dy = DY[d], nx = t.x + dx * dist, ny = t.y + dy * dist;
-  if (!blocked(t, nx, ny)) { t.x = nx; t.y = ny; t.tread += dist; return true; }
-  let moved = 0;
-  const step = 0.25;
-  while (moved + step <= dist) {
-    const tx = t.x + dx * step, ty = t.y + dy * step;
-    if (blocked(t, tx, ty)) break;
-    t.x = tx; t.y = ty; moved += step;
-  }
-  t.tread += moved;
-  return false;
-}
 /* Avanza por un eje hasta donde se pueda; devuelve lo recorrido. */
 function slideTank(t, sx, sy, dist) {
   if (dist <= 0) return 0;
@@ -677,8 +650,8 @@ function slideTank(t, sx, sy, dist) {
   }
   return moved;
 }
-/* Jugador: movimiento libre en cualquier dirección, deslizándose contra los obstáculos. */
-function movePlayer(t, d, dist) {
+/* Movimiento libre en cualquier dirección, deslizándose contra los obstáculos. */
+function moveTank(t, d, dist) {
   t.dir = d;
   const vx = dirX(d), vy = dirY(d), nx = t.x + vx * dist, ny = t.y + vy * dist;
   if (!blocked(t, nx, ny)) { t.x = nx; t.y = ny; t.tread += dist; return true; }
